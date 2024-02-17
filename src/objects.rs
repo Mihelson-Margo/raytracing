@@ -1,0 +1,138 @@
+use glm::Vec3;
+use itertools::MultiUnzip;
+use na::UnitQuaternion;
+
+pub struct Ray {
+    pub origin: Vec3,
+    pub direction: Vec3,
+}
+
+pub struct RayIntersection {
+    pub t: f32,
+    pub color: Vec3,
+}
+
+pub trait Geometry {
+    fn intersect(&self, ray: &Ray) -> Option<f32>;
+}
+
+pub struct Object<G> {
+    pub geometry: G,
+
+    pub position: Vec3,
+    pub rotation: UnitQuaternion<f32>,
+
+    pub color: Vec3,
+}
+
+impl<G> Object<G> {
+    pub fn new(geometry: G) -> Self {
+        Self {
+            geometry,
+            position: Vec3::zeros(),
+            rotation: UnitQuaternion::identity(),
+            color: Vec3::zeros(),
+        }
+    }
+}
+
+impl Object<Box<dyn Geometry>> {
+    pub fn intersect(&self, ray: &Ray) -> Option<RayIntersection> {
+        let transformed_ray = Ray {
+            origin: self.rotation.inverse() * (ray.origin - self.position),
+            direction: self.rotation.inverse() * ray.direction,
+        };
+        let t = self.geometry.intersect(&transformed_ray)?;
+        Some(RayIntersection {
+            t,
+            color: self.color,
+        })
+    }
+}
+
+pub struct Plane {
+    // contains 0
+    pub normal: Vec3,
+}
+
+impl Geometry for Plane {
+    fn intersect(&self, ray: &Ray) -> Option<f32> {
+        let t = -glm::dot(&ray.origin, &self.normal) / glm::dot(&ray.direction, &self.normal);
+
+        if t < 0.0 {
+            None
+        } else {
+            Some(t)
+        }
+    }
+}
+
+pub struct Ellipsoid {
+    // center is 0
+    pub radiuses: Vec3,
+}
+
+impl Geometry for Ellipsoid {
+    fn intersect(&self, ray: &Ray) -> Option<f32> {
+        let u = ray.origin.component_div(&self.radiuses);
+        let v = ray.direction.component_div(&self.radiuses);
+
+        let a = glm::length2(&v);
+        let b = glm::dot(&u, &v);
+        let c = glm::length2(&u) - 1.0;
+
+        let det = b * b - a * c;
+
+        if det < 0.0 {
+            return None;
+        }
+
+        let t1 = (-b + det.sqrt()) / a;
+        let t2 = (-b - det.sqrt()) / a;
+
+        let (t1, t2) = (t1.min(t2), t1.max(t2));
+
+        if t1 > 0.0 {
+            Some(t1)
+        } else if t2 > 0.0 {
+            Some(t2)
+        } else {
+            None
+        }
+    }
+}
+
+
+pub struct Parallelipiped {
+    // center is 0
+    pub sizes: Vec3,
+}
+
+
+impl Geometry for Parallelipiped {
+    fn intersect(&self, ray: &Ray) -> Option<f32> {
+        let o = ray.origin;
+        let d = ray.direction;
+
+        let (l, r): (Vec<_>, Vec<_>) = (0..3).map(|i|{
+            let t1 = (self.sizes[i] - o[i]) / d[i];
+            let t2 = (-self.sizes[i] - o[i]) / d[i];
+
+            (t1.min(t2), t1.max(t2))
+        })
+        .multiunzip();
+
+        let t1 = l[0].max(l[1]).max(l[2]);
+        let t2 = r[0].min(r[1]).min(r[2]);
+
+        if t1 > t2 {
+            None
+        } else if t1 >= 0.0 {
+            Some(t1)
+        } else if t2 >= 0.0 {
+            Some(t2)
+        } else {
+            None
+        }
+    }
+}
