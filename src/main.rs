@@ -116,12 +116,13 @@ fn trace_ray(scene: &mut Scene, ray: &Ray, depth: usize) -> Option<Vec3> {
                     origin: point + EPS * new_d,
                     direction: new_d,
                 };
-                let color = trace_ray(scene, &new_ray, depth + 1).unwrap_or(scene.background_color);
+                let mut color =
+                    trace_ray(scene, &new_ray, depth + 1).unwrap_or(scene.background_color);
+                if !intersection.is_inside {
+                    color.component_mul_assign(&scene.objects[idx].color);
+                }
 
-                (
-                    color.component_mul(&scene.objects[idx].color),
-                    schilcks_coeff(eta1, eta2, cos1),
-                )
+                (color, schilcks_coeff(eta1, eta2, cos1))
             } else {
                 (Vec3::zeros(), 1.0)
             };
