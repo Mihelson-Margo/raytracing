@@ -180,12 +180,9 @@ pub fn parse_scene(path: &str) -> Scene {
             "IOR" => {
                 let ior = tokens[1].parse::<f32>().unwrap();
                 let idx = parser.objects.len() - 1;
-                match parser.objects[idx].material {
-                    Material::Dielectric { .. } => {
-                        parser.objects[idx].material = Material::Dielectric { ior };
-                    }
-                    _ => {}
-                };
+                if let Material::Dielectric { .. } = parser.objects[idx].material {
+                    parser.objects[idx].material = Material::Dielectric { ior };
+                }
             }
             "NEW_LIGHT" => {
                 parser.push_light();
@@ -212,7 +209,7 @@ pub fn parse_scene(path: &str) -> Scene {
     parser.create_scene()
 }
 
-fn parse_vec3<'a>(tokens: &[&'a str]) -> Vec3 {
+fn parse_vec3(tokens: &[&str]) -> Vec3 {
     let r = tokens[0].parse::<f32>().unwrap();
     let g = tokens[1].parse::<f32>().unwrap();
     let b = tokens[2].parse::<f32>().unwrap();
@@ -220,7 +217,7 @@ fn parse_vec3<'a>(tokens: &[&'a str]) -> Vec3 {
     vec3(r, g, b)
 }
 
-fn parse_quaternion<'a>(tokens: &[&'a str]) -> UnitQuaternion<f32> {
+fn parse_quaternion(tokens: &[&str]) -> UnitQuaternion<f32> {
     let x = tokens[0].parse::<f32>().unwrap();
     let y = tokens[1].parse::<f32>().unwrap();
     let z = tokens[2].parse::<f32>().unwrap();

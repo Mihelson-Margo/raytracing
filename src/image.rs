@@ -25,10 +25,10 @@ impl Image {
 
     pub fn write(&self, path: &str) {
         let mut file = File::create(path).unwrap();
-        file.write("P6\n".as_bytes()).unwrap();
-        file.write(format!("{} {}\n", self.width, self.height).as_bytes())
+        file.write_all("P6\n".as_bytes()).unwrap();
+        file.write_all(format!("{} {}\n", self.width, self.height).as_bytes())
             .unwrap();
-        file.write("255\n".as_bytes()).unwrap();
+        file.write_all("255\n".as_bytes()).unwrap();
 
         let data = self
             .data
@@ -40,7 +40,7 @@ impl Image {
             })
             .collect::<Vec<_>>();
 
-        file.write(&data).unwrap();
+        file.write_all(&data).unwrap();
     }
 
     pub fn color_correction(&mut self) {

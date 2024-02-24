@@ -2,10 +2,7 @@ use glm::Vec3;
 use itertools::MultiUnzip;
 use na::UnitQuaternion;
 
-pub struct Ray {
-    pub origin: Vec3,
-    pub direction: Vec3,
-}
+use crate::ray::Ray;
 
 pub struct RayIntersection {
     pub t: f32,

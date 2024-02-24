@@ -1,7 +1,7 @@
 use glm::{vec3, Vec3};
 use na::Matrix3;
 
-use crate::objects::Ray;
+use crate::ray::Ray;
 
 pub struct Camera {
     pub position: Vec3,
@@ -18,9 +18,6 @@ impl Camera {
         let direction = vec3(u * self.tg_fov_x, v * self.tg_fov_y, 1.0);
         let direction = self.axis * direction;
 
-        Ray {
-            origin: self.position,
-            direction,
-        }
+        Ray::new(self.position, direction)
     }
 }
