@@ -19,18 +19,18 @@ pub fn trace_ray(scene: &mut Scene, ray: &Ray, depth: usize) -> Vec3 {
     let point = ray.origin + intersection.t * ray.direction;
     let emitted = scene.objects[idx].emission;
 
-    match scene.objects[idx].material {
+    let color = match scene.objects[idx].material {
         Material::Diffuse => {
             let new_dir = rand_direction(&mut scene.generator, &intersection.n);
             let new_ray = Ray::new_shifted(point, new_dir);
             let color = trace_ray(scene, &new_ray, depth + 1);
             let cos = glm::dot(&intersection.n, &new_ray.direction);
-            (2.0 * color * cos).component_mul(&scene.objects[idx].color) + emitted
+            (2.0 * color * cos).component_mul(&scene.objects[idx].color)
         }
         Material::Metallic => {
             let reflected_ray = get_reflected_ray(&ray.direction, &point, &intersection.n);
             let color = trace_ray(scene, &reflected_ray, depth + 1);
-            color.component_mul(&scene.objects[idx].color) + emitted
+            color.component_mul(&scene.objects[idx].color)
         }
         Material::Dielectric { ior } => calc_dielectric_color(
             scene,
@@ -41,10 +41,11 @@ pub fn trace_ray(scene: &mut Scene, ray: &Ray, depth: usize) -> Vec3 {
             ior,
             idx,
             depth,
-        ) + emitted,
-    }
-}
+        ),
+    };
 
+    color + emitted
+}
 
 fn calc_dielectric_color(
     scene: &mut Scene,
@@ -60,26 +61,19 @@ fn calc_dielectric_color(
     let eta = if is_inside { ior } else { 1.0 / ior };
 
     let reflected_ray = get_reflected_ray(&ray.direction, point, normal);
-    // let reflected_color = trace_ray(scene, &reflected_ray, depth + 1);
-
     let maybe_refracetd_ray = get_refracted_ray(&ray.direction, point, normal, eta);
     let coeff = schilcks_coeff(eta, -glm::dot(&ray.direction, normal));
 
-    if maybe_refracetd_ray.is_some()  && (scene.generator.gen::<f32>() < 1.0 - coeff) {
+    if maybe_refracetd_ray.is_some() && (scene.generator.gen::<f32>() < 1.0 - coeff) {
         let refracted_ray = maybe_refracetd_ray.unwrap();
         let mut color = trace_ray(scene, &refracted_ray, depth + 1);
         if !is_inside {
             color.component_mul_assign(&scene.objects[object_idx].color);
         }
         color
-        // let cos = -glm::dot(&ray.direction, normal);
-        // (color, schilcks_coeff(eta, cos));
-        // todo!()
     } else {
         trace_ray(scene, &reflected_ray, depth + 1)
     }
-
-    // reflected_color * coeff + refracted_color * (1.0 - coeff)
 }
 
 fn intersect_with_objects(
