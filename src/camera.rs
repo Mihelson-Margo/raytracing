@@ -13,7 +13,7 @@ pub struct Camera {
 
 impl Camera {
     pub fn ray_to_point(&self, u: f32, v: f32) -> Ray {
-        assert!(u.abs() < 1.0 && v.abs() < 1.0);
+        assert!(u.abs() <= 1.0 && v.abs() <= 1.0);
 
         let direction = vec3(u * self.tg_fov_x, v * self.tg_fov_y, 1.0);
         let direction = self.axis * direction;

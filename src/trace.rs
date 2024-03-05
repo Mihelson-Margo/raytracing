@@ -1,23 +1,35 @@
 use glm::Vec3;
+use rand::Rng;
 
 use crate::objects::{Geometry, Material, Object, RayIntersection};
+use crate::random::rand_direction;
 use crate::ray::Ray;
 use crate::Scene;
 
-pub fn trace_ray(scene: &Scene, ray: &Ray, depth: usize) -> Option<Vec3> {
+pub fn trace_ray(scene: &mut Scene, ray: &Ray, depth: usize) -> Vec3 {
     if depth >= scene.ray_depth {
-        return None;
+        return Vec3::zeros();
     }
 
-    let (idx, intersection) = intersect_with_objects(&scene.objects, ray, f32::INFINITY)?;
+    let Some((idx, intersection)) = intersect_with_objects(&scene.objects, ray, f32::INFINITY)
+    else {
+        return scene.background_color;
+    };
+
     let point = ray.origin + intersection.t * ray.direction;
+    let emitted = scene.objects[idx].emission;
 
     let color = match scene.objects[idx].material {
-        Material::Diffuse => calc_diffuse_color(scene, &point, &intersection.n, idx),
+        Material::Diffuse => {
+            let new_dir = rand_direction(&mut scene.generator, &intersection.n);
+            let new_ray = Ray::new_shifted(point, new_dir);
+            let color = trace_ray(scene, &new_ray, depth + 1);
+            let cos = glm::dot(&intersection.n, &new_ray.direction);
+            (2.0 * color * cos).component_mul(&scene.objects[idx].color)
+        }
         Material::Metallic => {
             let reflected_ray = get_reflected_ray(&ray.direction, &point, &intersection.n);
-            let color =
-                trace_ray(scene, &reflected_ray, depth + 1).unwrap_or(scene.background_color);
+            let color = trace_ray(scene, &reflected_ray, depth + 1);
             color.component_mul(&scene.objects[idx].color)
         }
         Material::Dielectric { ior } => calc_dielectric_color(
@@ -32,32 +44,11 @@ pub fn trace_ray(scene: &Scene, ray: &Ray, depth: usize) -> Option<Vec3> {
         ),
     };
 
-    Some(color)
-}
-
-fn calc_diffuse_color(scene: &Scene, point: &Vec3, normal: &Vec3, object_idx: usize) -> Vec3 {
-    let mut light_intensity = scene.ambient;
-    for light_source in &scene.lights {
-        let d = light_source.direction_to_light(point).normalize(); // TODO: fix
-        let ray_to_light = Ray::new_shifted(*point, d);
-
-        if intersect_with_objects(
-            &scene.objects,
-            &ray_to_light,
-            light_source.dist_to_light(point),
-        )
-        .is_none()
-        {
-            let coef = glm::dot(normal, &d).max(0.0);
-            light_intensity += light_source.intensity(point) * coef;
-        }
-    }
-
-    light_intensity.component_mul(&scene.objects[object_idx].color)
+    color + emitted
 }
 
 fn calc_dielectric_color(
-    scene: &Scene,
+    scene: &mut Scene,
     ray: &Ray,
     point: &Vec3,
     normal: &Vec3,
@@ -70,23 +61,19 @@ fn calc_dielectric_color(
     let eta = if is_inside { ior } else { 1.0 / ior };
 
     let reflected_ray = get_reflected_ray(&ray.direction, point, normal);
-    let reflected_color =
-        trace_ray(scene, &reflected_ray, depth + 1).unwrap_or(scene.background_color);
-
     let maybe_refracetd_ray = get_refracted_ray(&ray.direction, point, normal, eta);
-    let (refracted_color, coeff) = if let Some(refracted_ray) = maybe_refracetd_ray {
-        let mut color =
-            trace_ray(scene, &refracted_ray, depth + 1).unwrap_or(scene.background_color);
+    let coeff = schilcks_coeff(eta, -glm::dot(&ray.direction, normal));
+
+    if maybe_refracetd_ray.is_some() && (scene.generator.gen::<f32>() < 1.0 - coeff) {
+        let refracted_ray = maybe_refracetd_ray.unwrap();
+        let mut color = trace_ray(scene, &refracted_ray, depth + 1);
         if !is_inside {
             color.component_mul_assign(&scene.objects[object_idx].color);
         }
-        let cos = -glm::dot(&ray.direction, normal);
-        (color, schilcks_coeff(eta, cos))
+        color
     } else {
-        (Vec3::zeros(), 1.0)
-    };
-
-    reflected_color * coeff + refracted_color * (1.0 - coeff)
+        trace_ray(scene, &reflected_ray, depth + 1)
+    }
 }
 
 fn intersect_with_objects(

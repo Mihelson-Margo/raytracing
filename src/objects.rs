@@ -27,6 +27,7 @@ pub struct Object<G> {
     pub rotation: UnitQuaternion<f32>,
 
     pub color: Vec3,
+    pub emission: Vec3,
     pub material: Material,
 }
 
@@ -37,6 +38,7 @@ impl<G> Object<G> {
             position: Vec3::zeros(),
             rotation: UnitQuaternion::identity(),
             color: Vec3::zeros(),
+            emission: Vec3::zeros(),
             material: Material::Diffuse,
         }
     }

@@ -10,12 +10,17 @@ pub struct Image {
 }
 
 impl Image {
-    pub fn new(width: usize, height: usize, color: Vec3) -> Self {
+    pub fn new(width: usize, height: usize) -> Self {
         Self {
             width,
             height,
-            data: vec![color; width * height],
+            data: vec![Vec3::zeros(); width * height],
         }
+    }
+
+    pub fn get(&self, u: usize, v: usize) -> Vec3 {
+        let v = self.height - 1 - v;
+        self.data[self.width * v + u]
     }
 
     pub fn set(&mut self, u: usize, v: usize, color: Vec3) {

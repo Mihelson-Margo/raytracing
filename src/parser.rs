@@ -1,15 +1,16 @@
 use glm::{vec3, Vec3};
 use na::{Matrix3, UnitQuaternion};
+use rand::rngs::ThreadRng;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
 
 use crate::camera::Camera;
 use crate::image::*;
-use crate::light::{DirectedLight, Light, PointLight};
 use crate::objects::*;
 
 pub struct Scene {
     pub ray_depth: usize,
+    pub n_samples: usize,
 
     pub image: Image,
     pub background_color: Vec3,
@@ -17,8 +18,7 @@ pub struct Scene {
 
     pub objects: Vec<Object<Box<dyn Geometry>>>,
 
-    pub lights: Vec<Box<dyn Light>>,
-    pub ambient: Vec3,
+    pub generator: ThreadRng,
 }
 
 #[derive(Default)]
@@ -33,24 +33,13 @@ pub struct SceneParser {
 
     objects: Vec<Object<Box<dyn Geometry>>>,
 
-    ambient: Option<Vec3>,
-    lights: Vec<Box<dyn Light>>,
-    have_new_light: bool,
-    last_intensity: Option<Vec3>,
-    last_light_direction: Option<Vec3>,
-    last_light_position: Option<Vec3>,
-    last_attenuation: Option<Vec3>,
-
     ray_depth: Option<usize>,
+    n_samples: Option<usize>,
 }
 
 impl SceneParser {
     pub fn create_scene(self) -> Scene {
-        let image = Image::new(
-            self.image_width.unwrap(),
-            self.image_height.unwrap(),
-            self.background_color.unwrap(),
-        );
+        let image = Image::new(self.image_width.unwrap(), self.image_height.unwrap());
 
         let tg_fov_x = (self.camera_fov_x.unwrap() / 2.0).tan();
         let aspect = image.height as f32 / image.width as f32;
@@ -70,37 +59,13 @@ impl SceneParser {
 
         Scene {
             ray_depth: self.ray_depth.unwrap(),
+            n_samples: self.n_samples.unwrap(),
             image,
             background_color: self.background_color.unwrap(),
             camera,
             objects: self.objects,
-            lights: self.lights,
-            ambient: self.ambient.unwrap_or(Vec3::zeros()),
+            generator: rand::thread_rng(),
         }
-    }
-
-    fn push_light(&mut self) {
-        if !self.have_new_light {
-            return;
-        }
-
-        if self.last_light_direction.is_some() {
-            self.lights.push(Box::new(DirectedLight {
-                direction: self.last_light_direction.unwrap(),
-                intensity: self.last_intensity.unwrap(),
-            }));
-        } else {
-            self.lights.push(Box::new(PointLight {
-                position: self.last_light_position.unwrap(),
-                attenuation: self.last_attenuation.unwrap(),
-                intensity: self.last_intensity.unwrap(),
-            }));
-        }
-
-        self.last_intensity = None;
-        self.last_light_direction = None;
-        self.last_light_position = None;
-        self.last_attenuation = None;
     }
 }
 
@@ -120,8 +85,10 @@ pub fn parse_scene(path: &str) -> Scene {
             "RAY_DEPTH" => {
                 parser.ray_depth = Some(tokens[1].parse::<usize>().unwrap());
             }
+            "SAMPLES" => {
+                parser.n_samples = Some(tokens[1].parse::<usize>().unwrap());
+            }
             "BG_COLOR" => parser.background_color = Some(parse_vec3(&tokens[1..])),
-            "AMBIENT_LIGHT" => parser.ambient = Some(parse_vec3(&tokens[1..])),
             "CAMERA_POSITION" => {
                 parser.camera_position = Some(parse_vec3(&tokens[1..]));
             }
@@ -169,6 +136,11 @@ pub fn parse_scene(path: &str) -> Scene {
                 let idx = parser.objects.len() - 1;
                 parser.objects[idx].color = color;
             }
+            "EMISSION" => {
+                let color = parse_vec3(&tokens[1..]);
+                let idx = parser.objects.len() - 1;
+                parser.objects[idx].emission = color;
+            }
             "METALLIC" => {
                 let idx = parser.objects.len() - 1;
                 parser.objects[idx].material = Material::Metallic;
@@ -184,27 +156,9 @@ pub fn parse_scene(path: &str) -> Scene {
                     parser.objects[idx].material = Material::Dielectric { ior };
                 }
             }
-            "NEW_LIGHT" => {
-                parser.push_light();
-                parser.have_new_light = true;
-            }
-            "LIGHT_INTENSITY" => {
-                parser.last_intensity = Some(parse_vec3(&tokens[1..]));
-            }
-            "LIGHT_DIRECTION" => {
-                parser.last_light_direction = Some(parse_vec3(&tokens[1..]));
-            }
-            "LIGHT_POSITION" => {
-                parser.last_light_position = Some(parse_vec3(&tokens[1..]));
-            }
-            "LIGHT_ATTENUATION" => {
-                parser.last_attenuation = Some(parse_vec3(&tokens[1..]));
-            }
             _ => {}
         }
     }
-
-    parser.push_light();
 
     parser.create_scene()
 }
