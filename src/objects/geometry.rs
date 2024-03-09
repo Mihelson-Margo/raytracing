@@ -1,9 +1,13 @@
 use glm::Vec3;
 use itertools::MultiUnzip;
-use na::UnitQuaternion;
 
+use super::{
+    figures::{Ellipsoid, Parallelipiped, Plane},
+    LightSource, PositionedFigure,
+};
 use crate::ray::Ray;
 
+#[derive(Clone)]
 pub struct RayIntersection {
     pub t: f32,
     pub n: Vec3,
@@ -14,43 +18,14 @@ pub trait Geometry {
     fn intersect(&self, ray: &Ray) -> Option<RayIntersection>;
 }
 
-pub enum Material {
-    Diffuse,
-    Metallic,
-    Dielectric { ior: f32 },
-}
-
-pub struct Object<G> {
-    pub geometry: G,
-
-    pub position: Vec3,
-    pub rotation: UnitQuaternion<f32>,
-
-    pub color: Vec3,
-    pub emission: Vec3,
-    pub material: Material,
-}
-
-impl<G> Object<G> {
-    pub fn new(geometry: G) -> Self {
-        Self {
-            geometry,
-            position: Vec3::zeros(),
-            rotation: UnitQuaternion::identity(),
-            color: Vec3::zeros(),
-            emission: Vec3::zeros(),
-            material: Material::Diffuse,
-        }
-    }
-}
-
-impl Object<Box<dyn Geometry>> {
-    pub fn intersect(&self, ray: &Ray) -> Option<RayIntersection> {
+// TODO: fix!
+impl Geometry for PositionedFigure<Box<dyn Geometry>> {
+    fn intersect(&self, ray: &Ray) -> Option<RayIntersection> {
         let transformed_ray = Ray {
             origin: self.rotation.inverse() * (ray.origin - self.position),
             direction: self.rotation.inverse() * ray.direction,
         };
-        let mut intersection = self.geometry.intersect(&transformed_ray)?;
+        let mut intersection = self.figure.intersect(&transformed_ray)?;
 
         intersection.n = (self.rotation * intersection.n).normalize();
         if glm::dot(&intersection.n, &ray.direction) > 0.0 {
@@ -61,9 +36,21 @@ impl Object<Box<dyn Geometry>> {
     }
 }
 
-pub struct Plane {
-    // contains 0
-    pub normal: Vec3,
+impl<F: Geometry> Geometry for PositionedFigure<F> {
+    fn intersect(&self, ray: &Ray) -> Option<RayIntersection> {
+        let transformed_ray = Ray {
+            origin: self.rotation.inverse() * (ray.origin - self.position),
+            direction: self.rotation.inverse() * ray.direction,
+        };
+        let mut intersection = self.figure.intersect(&transformed_ray)?;
+
+        intersection.n = (self.rotation * intersection.n).normalize();
+        if glm::dot(&intersection.n, &ray.direction) > 0.0 {
+            intersection.n = -intersection.n;
+        }
+
+        Some(intersection)
+    }
 }
 
 impl Geometry for Plane {
@@ -81,11 +68,6 @@ impl Geometry for Plane {
             })
         }
     }
-}
-
-pub struct Ellipsoid {
-    // center is 0
-    pub radiuses: Vec3,
 }
 
 impl Geometry for Ellipsoid {
@@ -122,11 +104,6 @@ impl Geometry for Ellipsoid {
             n: (u + t * v).component_div(&self.radiuses),
         })
     }
-}
-
-pub struct Parallelipiped {
-    // center is 0
-    pub sizes: Vec3,
 }
 
 impl Geometry for Parallelipiped {

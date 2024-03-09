@@ -1,4 +1,5 @@
 use glm::{vec3, Vec3};
+use itertools::izip;
 use na::{Matrix3, UnitQuaternion};
 use rand::rngs::ThreadRng;
 use std::fs::File;
@@ -17,6 +18,7 @@ pub struct Scene {
     pub camera: Camera,
 
     pub objects: Vec<Object<Box<dyn Geometry>>>,
+    pub lights: Vec<Box<dyn LightSource>>,
 
     pub generator: ThreadRng,
 }
@@ -32,9 +34,16 @@ pub struct SceneParser {
     camera_fov_x: Option<f32>,
 
     objects: Vec<Object<Box<dyn Geometry>>>,
-
+    figure_types: Vec<FigureType>,
+    // mb_lights: Vec<(Box<dyn LightSource>, usize)>,
     ray_depth: Option<usize>,
     n_samples: Option<usize>,
+}
+
+enum FigureType {
+    Plane(Vec3),
+    Parallelipiped(Vec3),
+    Ellipsoid(Vec3),
 }
 
 impl SceneParser {
@@ -57,6 +66,28 @@ impl SceneParser {
             tg_fov_y,
         };
 
+        let lights = izip!(self.figure_types.into_iter(), self.objects.iter())
+            .filter_map(|(fig_type, obj)| {
+                if glm::length2(&obj.emission) == 0.0 {
+                    return None;
+                }
+                match fig_type {
+                    FigureType::Plane(_) => None,
+                    FigureType::Ellipsoid(radiuses) => Some(Box::new(PositionedFigure {
+                        figure: Ellipsoid { radiuses },
+                        position: obj.geometry.position,
+                        rotation: obj.geometry.rotation,
+                    })
+                        as Box<dyn LightSource>),
+                    FigureType::Parallelipiped(sizes) => Some(Box::new(PositionedFigure {
+                        figure: Parallelipiped { sizes },
+                        position: obj.geometry.position,
+                        rotation: obj.geometry.rotation,
+                    })),
+                }
+            })
+            .collect::<Vec<_>>();
+
         Scene {
             ray_depth: self.ray_depth.unwrap(),
             n_samples: self.n_samples.unwrap(),
@@ -64,6 +95,7 @@ impl SceneParser {
             background_color: self.background_color.unwrap(),
             camera,
             objects: self.objects,
+            lights,
             generator: rand::thread_rng(),
         }
     }
@@ -108,28 +140,31 @@ pub fn parse_scene(path: &str) -> Scene {
             "PLANE" => {
                 let normal = parse_vec3(&tokens[1..]);
                 parser.objects.push(Object::new(Box::new(Plane { normal })));
+                parser.figure_types.push(FigureType::Plane(normal));
             }
             "ELLIPSOID" => {
                 let radiuses = parse_vec3(&tokens[1..]);
                 parser
                     .objects
                     .push(Object::new(Box::new(Ellipsoid { radiuses })));
+                parser.figure_types.push(FigureType::Ellipsoid(radiuses));
             }
             "BOX" => {
                 let sizes = parse_vec3(&tokens[1..]);
                 parser
                     .objects
                     .push(Object::new(Box::new(Parallelipiped { sizes })));
+                parser.figure_types.push(FigureType::Parallelipiped(sizes));
             }
             "POSITION" => {
                 let position = parse_vec3(&tokens[1..]);
                 let idx = parser.objects.len() - 1;
-                parser.objects[idx].position = position;
+                parser.objects[idx].geometry.position = position;
             }
             "ROTATION" => {
                 let rotation = parse_quaternion(&tokens[1..]);
                 let idx = parser.objects.len() - 1;
-                parser.objects[idx].rotation = rotation;
+                parser.objects[idx].geometry.rotation = rotation;
             }
             "COLOR" => {
                 let color = parse_vec3(&tokens[1..]);

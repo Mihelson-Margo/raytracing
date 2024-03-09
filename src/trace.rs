@@ -2,7 +2,7 @@ use glm::Vec3;
 use rand::Rng;
 
 use crate::objects::{Geometry, Material, Object, RayIntersection};
-use crate::random::rand_direction;
+use crate::random::{Cosine, ToLigth, Uniform, MIS};
 use crate::ray::Ray;
 use crate::Scene;
 
@@ -17,18 +17,35 @@ pub fn trace_ray(scene: &mut Scene, ray: &Ray, depth: usize) -> Vec3 {
     };
 
     let point = ray.origin + intersection.t * ray.direction;
+    let normal = intersection.n;
     let emitted = scene.objects[idx].emission;
 
     let color = match scene.objects[idx].material {
         Material::Diffuse => {
-            let new_dir = rand_direction(&mut scene.generator, &intersection.n);
-            let new_ray = Ray::new_shifted(point, new_dir);
-            let color = trace_ray(scene, &new_ray, depth + 1);
-            let cos = glm::dot(&intersection.n, &new_ray.direction);
-            (2.0 * color * cos).component_mul(&scene.objects[idx].color)
+            let color_obj = scene.objects[idx].color / std::f32::consts::PI;
+
+            // let new_dir = Cosine::sample(&normal, &mut scene.generator);
+            // let pdf = Cosine::pdf(&normal, &new_dir);
+
+            let distribution = MIS {
+                to_light: ToLigth {
+                    lights: &scene.lights,
+                },
+            };
+
+            // let distribution = ToLigth {
+            //     lights: &scene.lights,
+            // };
+            let new_dir = distribution.sample(&point, &normal, &mut scene.generator);
+
+            let new_ray = Ray::new_shifted(point, new_dir.d);
+            let cos = glm::dot(&normal, &new_ray.direction);
+            let color_in = trace_ray(scene, &new_ray, depth + 1);
+
+            color_in.component_mul(&color_obj) * cos / new_dir.pdf
         }
         Material::Metallic => {
-            let reflected_ray = get_reflected_ray(&ray.direction, &point, &intersection.n);
+            let reflected_ray = get_reflected_ray(&ray.direction, &point, &normal);
             let color = trace_ray(scene, &reflected_ray, depth + 1);
             color.component_mul(&scene.objects[idx].color)
         }
@@ -36,7 +53,7 @@ pub fn trace_ray(scene: &mut Scene, ray: &Ray, depth: usize) -> Vec3 {
             scene,
             ray,
             &point,
-            &intersection.n,
+            &normal,
             intersection.is_inside,
             ior,
             idx,
@@ -86,7 +103,7 @@ fn intersect_with_objects(
     objects
         .iter()
         .enumerate()
-        .filter_map(|(i, object)| object.intersect(ray).map(|res| (i, res)))
+        .filter_map(|(i, object)| object.geometry.intersect(ray).map(|res| (i, res)))
         .filter_map(|(i, res)| {
             if res.t * ray_length < max_dist {
                 Some((i, res))
