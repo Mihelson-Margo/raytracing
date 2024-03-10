@@ -1,5 +1,6 @@
 use glm::{vec3, Vec3};
 use rand::{rngs::ThreadRng, Rng};
+use std::f32::consts::PI;
 
 use crate::{
     objects::{Geometry, LightSource, PositionedFigure, Sample},
@@ -15,18 +16,13 @@ pub struct Uniform;
 pub struct Cosine;
 
 impl Uniform {
-    pub fn sample(n: &Vec3, rng: &mut ThreadRng) -> Vec3 {
-        let d = sphere_uniform(rng);
-
-        if glm::dot(&d, n) >= 0.0 {
-            d
-        } else {
-            -d
+    pub fn sample(n: &Vec3, rng: &mut ThreadRng) -> SampledDirection {
+        let mut d = sphere_uniform(rng);
+        if glm::dot(&d, n) <= 0.0 {
+            d = -d;
         }
-    }
 
-    pub fn pdf() -> f32 {
-        0.5 / std::f32::consts::PI
+        SampledDirection { d, pdf: 0.5 / PI }
     }
 }
 
@@ -38,12 +34,12 @@ impl Cosine {
     }
 
     pub fn pdf(n: &Vec3, d: &Vec3) -> f32 {
-        glm::dot(n, d) / std::f32::consts::PI
+        glm::dot(n, d) / PI
     }
 }
 
 fn sphere_uniform(rng: &mut ThreadRng) -> Vec3 {
-    let phi = rng.gen::<f32>() * std::f32::consts::PI;
+    let phi = rng.gen::<f32>() * PI;
     let z = rng.gen::<f32>() * 2.0 - 1.0;
     let x = (1.0 - z * z).sqrt() * phi.cos();
     let y = (1.0 - z * z).sqrt() * phi.sin();
@@ -56,9 +52,12 @@ pub struct ToLigth<'a> {
 }
 
 impl<'a> ToLigth<'a> {
-    pub fn sample(&self, p: &Vec3, rng: &mut ThreadRng) -> SampledDirection {
-        let n = self.lights.len();
-        let idx = rng.gen_range(0..n);
+    pub fn sample(&self, p: &Vec3, n: &Vec3, rng: &mut ThreadRng) -> SampledDirection {
+        if self.lights.is_empty() {
+            return Uniform::sample(n, rng);
+        }
+
+        let idx = rng.gen_range(0..self.lights.len());
         let p_light = self.lights[idx].sample(rng);
         let ray = Ray::new_shifted(*p, p_light - p);
 
@@ -82,7 +81,7 @@ impl<'a> ToLigth<'a> {
 
         SampledDirection {
             d: ray.direction,
-            pdf: pdf / n as f32,
+            pdf: pdf / self.lights.len() as f32,
         }
     }
 }
@@ -98,7 +97,7 @@ impl<'a> MIS<'a> {
             let pdf = Cosine::pdf(n, &d);
             SampledDirection { d, pdf: pdf / 2.0 }
         } else {
-            let res = self.to_light.sample(p, rng);
+            let res = self.to_light.sample(p, n, rng);
             SampledDirection {
                 d: res.d,
                 pdf: res.pdf / 2.0,
