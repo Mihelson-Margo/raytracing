@@ -16,13 +16,16 @@ pub struct Uniform;
 pub struct Cosine;
 
 impl Uniform {
-    pub fn sample(n: &Vec3, rng: &mut ThreadRng) -> SampledDirection {
+    pub fn sample(n: &Vec3, rng: &mut ThreadRng) -> Vec3 {
         let mut d = sphere_uniform(rng);
         if glm::dot(&d, n) <= 0.0 {
             d = -d;
-        }
+        };
+        d
+    }
 
-        SampledDirection { d, pdf: 0.5 / PI }
+    pub fn pdf(_n: &Vec3, _d: &Vec3) -> f32 {
+        0.5 / PI
     }
 }
 
@@ -104,13 +107,22 @@ impl<'a> ToLigth<'a> {
             // println!("q1 = {}, q2 = {}, l1 = {}, l2 = {}", q1, q2, l1, l2);
             // assert!(l1 < 0.1 || l2 < 0.1);
 
-            pdf += pdf1 + pdf2;
+            if pdf1.is_finite() {
+                pdf += pdf1;
+            }
+            if pdf2.is_finite() {
+                pdf += pdf2;
+            }
+
+            assert!(pdf >= 0.0);
         }
 
         pdf /= self.lights.len() as f32;
         pdf
     }
 }
+
+
 
 pub struct MIS<'a> {
     pub to_light: ToLigth<'a>,
@@ -127,8 +139,14 @@ impl<'a> MIS<'a> {
             self.to_light.sample(p, n, rng)
         };
 
-        let pdf =
+        let mut pdf =
             Cosine::pdf(n, &d) * cosine_prob + self.to_light.pdf(p, n, &d) * (1.0 - cosine_prob);
+
+        if !(pdf > 0.0) {
+            pdf = f32::INFINITY;
+        }
+        // println!("pdf = {}", pdf);
+        assert!(pdf > 0.0);
 
         SampledDirection { d, pdf }
     }
