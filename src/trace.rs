@@ -1,3 +1,5 @@
+use std::f32::consts::PI;
+
 use glm::Vec3;
 use rand::Rng;
 
@@ -22,7 +24,7 @@ pub fn trace_ray(scene: &mut Scene, ray: &Ray, depth: usize) -> Vec3 {
 
     let color = match scene.objects[idx].material {
         Material::Diffuse => {
-            let color_obj = scene.objects[idx].color / std::f32::consts::PI;
+            let color_obj = scene.objects[idx].color / PI;
 
             // let new_dir = Cosine::sample(&normal, &mut scene.generator);
             // let pdf = Cosine::pdf(&normal, &new_dir);
@@ -43,6 +45,9 @@ pub fn trace_ray(scene: &mut Scene, ray: &Ray, depth: usize) -> Vec3 {
 
             let new_ray = Ray::new_shifted(point, new_dir.d);
             let cos = glm::dot(&normal, &new_ray.direction);
+
+            // assert!((cos / new_dir.pdf - PI).abs() < 0.001);
+
             let color_in = trace_ray(scene, &new_ray, depth + 1);
 
             color_in.component_mul(&color_obj) * cos / new_dir.pdf
