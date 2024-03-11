@@ -58,26 +58,50 @@ impl<'a> ToLigth<'a> {
         }
 
         let idx = rng.gen_range(0..self.lights.len());
-        let p_light = self.lights[idx].sample(rng);
-        let ray = Ray::new_shifted(*p, p_light - p);
+        let obj = &self.lights[idx];
+        let p_light = obj.sample(rng);
+        let ray = Ray::new(*p, p_light - p);
 
-        let Some(i1) = self.lights[idx].intersect(&ray) else {
+        let t0 = glm::length(&(p_light - p));
+        // println!("=========");
+        // println!("o + t*d = {} + {}*{} = {} =? {}", ray.origin, t0, ray.direction,
+        //     ray.origin + t0*ray.direction, p_light);
+
+        // println!("Origin: {}, light: {}", p, p_light);
+
+        let Some(i1) = obj.intersect(&ray) else {
+            // println!("Oooops");
             return SampledDirection {
                 d: ray.direction,
-                pdf: 0.0,
+                pdf: f32::INFINITY,
             };
         };
         let q1 = ray.origin + i1.t * ray.direction;
-        let i2 = self.lights[idx]
-            .intersect(&Ray::new_shifted(q1, ray.direction))
+        let ray2 = Ray::new_shifted(q1, ray.direction);
+
+        let i2 = obj
+            .intersect(&ray2)
             .unwrap_or(i1.clone());
-        let q2 = q1 + i2.t * ray.direction;
-        let pdf1 = self.lights[idx].pdf(&q1) * glm::length2(&(p - q1))
+        let q2 = ray2.origin + i2.t * ray2.direction;
+
+        let pdf1 = obj.pdf(&q1) * glm::length2(&(p - q1))
             / glm::dot(&ray.direction, &i1.n).abs();
-        let pdf2 = self.lights[idx].pdf(&q2) * glm::length2(&(p - q2))
+        let pdf2 = obj.pdf(&q2) * glm::length2(&(p - q2))
             / glm::dot(&ray.direction, &i2.n).abs();
 
-        let pdf = pdf1 + pdf2;
+        // println!("n1 = {}, n2 = {}", i1.n, i2.n);
+        // println!("pdf1 = {}, pdf2 = {}", pdf1, pdf2);
+        // assert!(obj.pdf(&q1) > 0.0 && obj.pdf(&q2) > 0.0);
+
+        let l1 = glm::length(&(p_light - q1));
+        let l2 = glm::length(&(p_light - q2));
+        // println!("q1 = {}, q2 = {}, l1 = {}, l2 = {}", q1, q2, l1, l2);
+        // assert!(l1 < 0.1 || l2 < 0.1);
+
+        let mut pdf = pdf1 + pdf2;
+        if (l1 > 0.01 && l2 > 0.01) {
+            pdf = f32::INFINITY;
+        }
 
         SampledDirection {
             d: ray.direction,

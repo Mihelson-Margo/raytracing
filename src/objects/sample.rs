@@ -13,6 +13,7 @@ pub trait Sample {
 
 impl<F: Sample> Sample for PositionedFigure<F> {
     fn sample(&self, rng: &mut ThreadRng) -> Vec3 {
+        // println!("Sample positioned!");
         let point = self.figure.sample(rng);
         self.rotation * point + self.position
     }
@@ -25,51 +26,54 @@ impl<F: Sample> Sample for PositionedFigure<F> {
 
 impl Sample for Parallelipiped {
     fn sample(&self, rng: &mut ThreadRng) -> Vec3 {
-        let (a, b, c) = (2.0 * self.sizes.x, 2.0 * self.sizes.y, 2.0 * self.sizes.z);
-        let area = 2.0 * (a * b + b * c + a * c);
+        // println!("Sample box!");
+
+        let (a, b, c) = (self.sizes.x, self.sizes.y, self.sizes.z);
+        let area = a * b + b * c + a * c;
         let sections = vec![
             a * b,
-            2.0 * a * b,
-            2.0 * a * b + a * c,
-            2.0 * (a * b + a * c),
-            area - b * c,
+            a * b + a * c,
             area,
-        ];
-        let axis = vec![
-            Vec3::z(),
-            -Vec3::z(),
-            Vec3::y(),
-            -Vec3::y(),
-            Vec3::x(),
-            -Vec3::x(),
         ];
 
         let x = rng.gen_range(0.0..area);
-        let mut p = izip!(&sections, axis)
-            .filter(|(&c, _)| x <= c)
-            .max_by(|(&c1, _), (c2, _)| c1.partial_cmp(c2).unwrap())
-            .unwrap()
-            .1;
+        let mut p = if x < sections[0] {
+            Vec3::z()
+        } else if x < sections[1] {
+            Vec3::y()
+        } else {
+            Vec3::z()
+        };
+
+        if rng.gen_bool(0.5) {
+            p = -p;
+        }
         p = p.component_mul(&self.sizes);
 
+        // println!("Box axis point = {}, sizes = {}", p, self.sizes);
+
         for i in 0..3 {
-            if p[i] < 0.5 {
-                p[i] = rng.gen_range(-self.sizes[i]..self.sizes[i]);
+            if p[i] == 0.0 {
+                // p[i] = rng.gen_range(-self.sizes[i]..self.sizes[i]);
+                p[i] = (rng.gen::<f32>()*2.0 - 1.0) * self.sizes[i];
             }
         }
+
+        // println!("Box point = {}", p);
 
         p
     }
 
     fn pdf(&self, _p: &Vec3) -> f32 {
         let (a, b, c) = (self.sizes.x, self.sizes.y, self.sizes.z);
-        let area = 4.0 * (a * b + b * c + a * c);
+        let area = 8.0 * (a * b + b * c + a * c);
         1.0 / area
     }
 }
 
 impl Sample for Ellipsoid {
     fn sample(&self, rng: &mut ThreadRng) -> Vec3 {
+        // println!("sample ellips!");
         let p_sphere = sphere_uniform(rng);
         p_sphere.component_mul(&self.radiuses)
     }
