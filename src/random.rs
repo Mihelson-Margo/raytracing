@@ -49,13 +49,19 @@ impl Cosine {
         let y = r * theta.sin();
         let z = (1.0 - x*x - y*y).sqrt();
 
-        let t0 = if glm::length2(&(n - Vec3::x())) > 0.2 {
+        let t0 = if n.x.abs() <= n.y.abs().min(n.z.abs()) {
             Vec3::x()
-        } else {
+        } else if n.y.abs() <= n.x.abs().min(n.z.abs()) {
             Vec3::y()
+        } else {
+            Vec3::z()
         };
-        let t0 = (t0 - t0*glm::dot(&t0, n)).normalize();
+
+        let t0 = (t0 - n*glm::dot(&t0, n)).normalize();
         let t1 = glm::cross(&t0, n).normalize();
+
+        assert!(glm::dot(&t0, n) < EPS);
+
         let rot = Matrix3::from_columns(&[t0, t1, *n]);
 
         rot * vec3(x, y, z)
