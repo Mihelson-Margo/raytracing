@@ -30,11 +30,7 @@ impl Sample for Parallelipiped {
 
         let (a, b, c) = (self.sizes.x, self.sizes.y, self.sizes.z);
         let area = a * b + b * c + a * c;
-        let sections = vec![
-            a * b,
-            a * b + a * c,
-            area,
-        ];
+        let sections = vec![a * b, a * b + a * c, area];
 
         let x = rng.gen_range(0.0..area);
         let mut p = if x < sections[0] {
@@ -55,7 +51,7 @@ impl Sample for Parallelipiped {
         for i in 0..3 {
             if p[i] == 0.0 {
                 // p[i] = rng.gen_range(-self.sizes[i]..self.sizes[i]);
-                p[i] = (rng.gen::<f32>()*2.0 - 1.0) * self.sizes[i];
+                p[i] = (rng.gen::<f32>() * 2.0 - 1.0) * self.sizes[i];
             }
         }
 

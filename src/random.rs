@@ -34,7 +34,7 @@ impl Cosine {
     }
 
     pub fn pdf(n: &Vec3, d: &Vec3) -> f32 {
-        glm::dot(n, d) / PI
+        glm::dot(n, d).max(0.0) / PI
     }
 }
 
@@ -52,61 +52,63 @@ pub struct ToLigth<'a> {
 }
 
 impl<'a> ToLigth<'a> {
-    pub fn sample(&self, p: &Vec3, n: &Vec3, rng: &mut ThreadRng) -> SampledDirection {
+    pub fn sample(&self, p: &Vec3, n: &Vec3, rng: &mut ThreadRng) -> Vec3 {
         if self.lights.is_empty() {
-            return Uniform::sample(n, rng);
+            return Cosine::sample(n, rng);
         }
 
         let idx = rng.gen_range(0..self.lights.len());
         let obj = &self.lights[idx];
         let p_light = obj.sample(rng);
-        let ray = Ray::new(*p, p_light - p);
 
-        let t0 = glm::length(&(p_light - p));
+        (p_light - p).normalize()
+    }
+
+    pub fn pdf(&self, p: &Vec3, n: &Vec3, d: &Vec3) -> f32 {
+        if self.lights.is_empty() {
+            return Cosine::pdf(n, d);
+        }
+
+        let ray = Ray::new(*p, *d);
+
+        // let t0 = glm::length(&(p_light - p));
         // println!("=========");
         // println!("o + t*d = {} + {}*{} = {} =? {}", ray.origin, t0, ray.direction,
         //     ray.origin + t0*ray.direction, p_light);
 
         // println!("Origin: {}, light: {}", p, p_light);
 
-        let Some(i1) = obj.intersect(&ray) else {
-            // println!("Oooops");
-            return SampledDirection {
-                d: ray.direction,
-                pdf: f32::INFINITY,
+        let mut pdf = 0.0;
+
+        for obj in self.lights.iter() {
+            let Some(i1) = obj.intersect(&ray) else {
+                continue;
             };
-        };
-        let q1 = ray.origin + i1.t * ray.direction;
-        let ray2 = Ray::new_shifted(q1, ray.direction);
+            let q1 = ray.origin + i1.t * ray.direction;
+            let ray2 = Ray::new_shifted(q1, ray.direction);
 
-        let i2 = obj
-            .intersect(&ray2)
-            .unwrap_or(i1.clone());
-        let q2 = ray2.origin + i2.t * ray2.direction;
+            let i2 = obj.intersect(&ray2).unwrap_or(i1.clone());
+            let q2 = ray2.origin + i2.t * ray2.direction;
 
-        let pdf1 = obj.pdf(&q1) * glm::length2(&(p - q1))
-            / glm::dot(&ray.direction, &i1.n).abs();
-        let pdf2 = obj.pdf(&q2) * glm::length2(&(p - q2))
-            / glm::dot(&ray.direction, &i2.n).abs();
+            let pdf1 =
+                obj.pdf(&q1) * glm::length2(&(p - q1)) / glm::dot(&ray.direction, &i1.n).abs();
+            let pdf2 =
+                obj.pdf(&q2) * glm::length2(&(p - q2)) / glm::dot(&ray.direction, &i2.n).abs();
 
-        // println!("n1 = {}, n2 = {}", i1.n, i2.n);
-        // println!("pdf1 = {}, pdf2 = {}", pdf1, pdf2);
-        // assert!(obj.pdf(&q1) > 0.0 && obj.pdf(&q2) > 0.0);
+            // println!("n1 = {}, n2 = {}", i1.n, i2.n);
+            // println!("pdf1 = {}, pdf2 = {}", pdf1, pdf2);
+            // assert!(obj.pdf(&q1) > 0.0 && obj.pdf(&q2) > 0.0);
 
-        let l1 = glm::length(&(p_light - q1));
-        let l2 = glm::length(&(p_light - q2));
-        // println!("q1 = {}, q2 = {}, l1 = {}, l2 = {}", q1, q2, l1, l2);
-        // assert!(l1 < 0.1 || l2 < 0.1);
+            // let l1 = glm::length(&(p_light - q1));
+            // let l2 = glm::length(&(p_light - q2));
+            // println!("q1 = {}, q2 = {}, l1 = {}, l2 = {}", q1, q2, l1, l2);
+            // assert!(l1 < 0.1 || l2 < 0.1);
 
-        let mut pdf = pdf1 + pdf2;
-        if (l1 > 0.01 && l2 > 0.01) {
-            pdf = f32::INFINITY;
+            pdf += pdf1 + pdf2;
         }
 
-        SampledDirection {
-            d: ray.direction,
-            pdf: pdf / self.lights.len() as f32,
-        }
+        pdf /= self.lights.len() as f32;
+        pdf
     }
 }
 
@@ -116,16 +118,18 @@ pub struct MIS<'a> {
 
 impl<'a> MIS<'a> {
     pub fn sample(&self, p: &Vec3, n: &Vec3, rng: &mut ThreadRng) -> SampledDirection {
-        if rng.gen_bool(0.5) {
-            let d = Cosine::sample(n, rng);
-            let pdf = Cosine::pdf(n, &d);
-            SampledDirection { d, pdf: pdf / 2.0 }
+        let cosine_prob = 0.5_f32;
+        let d = if rng.gen_bool(cosine_prob as f64) {
+            // let d = Cosine::sample(n, rng);
+            // let pdf = Cosine::pdf(n, &d);
+            Cosine::sample(n, rng)
         } else {
-            let res = self.to_light.sample(p, n, rng);
-            SampledDirection {
-                d: res.d,
-                pdf: res.pdf / 2.0,
-            }
-        }
+            self.to_light.sample(p, n, rng)
+        };
+
+        let pdf =
+            Cosine::pdf(n, &d) * cosine_prob + self.to_light.pdf(p, n, &d) * (1.0 - cosine_prob);
+
+        SampledDirection { d, pdf }
     }
 }
