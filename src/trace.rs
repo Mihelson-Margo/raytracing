@@ -2,7 +2,7 @@ use glm::Vec3;
 use rand::Rng;
 
 use crate::objects::{Geometry, Material, Object, RayIntersection};
-use crate::random::{Cosine, ToLigth, Uniform, MIS};
+use crate::random::{Cosine, SampledDirection, ToLigth, Uniform, MIS};
 use crate::ray::Ray;
 use crate::Scene;
 
@@ -36,7 +36,10 @@ pub fn trace_ray(scene: &mut Scene, ray: &Ray, depth: usize) -> Vec3 {
             // let distribution = ToLigth {
             //     lights: &scene.lights,
             // };
-            let new_dir = distribution.sample(&point, &normal, &mut scene.generator);
+            let mut new_dir = SampledDirection { d: -normal, pdf: 0.0};
+            while glm::dot(&new_dir.d, &normal) < 0.0 {
+                new_dir = distribution.sample(&point, &normal, &mut scene.generator);
+            }
 
             let new_ray = Ray::new_shifted(point, new_dir.d);
             let cos = glm::dot(&normal, &new_ray.direction);
