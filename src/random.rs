@@ -1,5 +1,6 @@
 use glm::{vec3, Vec3};
-use rand::{rngs::ThreadRng, Rng};
+use na::Matrix3;
+use rand::{rngs::ThreadRng, Rng, RngCore};
 use std::f32::consts::PI;
 
 use crate::{
@@ -34,9 +35,30 @@ impl Uniform {
 
 impl Cosine {
     pub fn sample(n: &Vec3, rng: &mut ThreadRng) -> Vec3 {
-        // TODO: handle d = -n
-        let d = sphere_uniform(rng).normalize();
-        (d + n.normalize()*(1.0 + EPS)).normalize()
+        // let d = sphere_uniform(rng).normalize();
+        // let res = (d + n.normalize()*(1.0 + EPS)).normalize();
+
+        // assert!(glm::dot(&res, n) >= 0.0);
+
+        // res
+
+        let theta = rng.gen_range(0.0..2.0*PI);
+        let r = rng.gen_range(0.0_f32..1.0).sqrt();
+
+        let x = r * theta.cos();
+        let y = r * theta.sin();
+        let z = (1.0 - x*x - y*y).sqrt();
+
+        let t0 = if glm::length2(&(n - Vec3::x())) > 0.2 {
+            Vec3::x()
+        } else {
+            Vec3::y()
+        };
+        let t0 = (t0 - t0*glm::dot(&t0, n)).normalize();
+        let t1 = glm::cross(&t0, n).normalize();
+        let rot = Matrix3::from_columns(&[t0, t1, *n]);
+
+        rot * vec3(x, y, z)
     }
 
     pub fn pdf(n: &Vec3, d: &Vec3) -> f32 {
@@ -62,7 +84,7 @@ pub struct ToLigth<'a> {
 impl<'a> ToLigth<'a> {
     pub fn sample(&self, p: &Vec3, n: &Vec3, rng: &mut ThreadRng) -> Vec3 {
         if self.lights.is_empty() {
-            return Uniform::sample(n, rng);
+            return Cosine::sample(n, rng);
         }
 
         let idx = rng.gen_range(0..self.lights.len());
@@ -74,7 +96,7 @@ impl<'a> ToLigth<'a> {
 
     pub fn pdf(&self, p: &Vec3, n: &Vec3, d: &Vec3) -> f32 {
         if self.lights.is_empty() {
-            return Uniform::pdf(n, d);
+            return Cosine::pdf(n, d);
         }
 
         let ray = Ray::new(*p, *d);
@@ -137,13 +159,13 @@ impl<'a> MIS<'a> {
     pub fn sample(&self, p: &Vec3, n: &Vec3, rng: &mut ThreadRng) -> SampledDirection {
         let cosine_prob = 0.5_f32;
         let d = if rng.gen_bool(cosine_prob as f64) {
-            Uniform::sample(n, rng)
+            Cosine::sample(n, rng)
         } else {
             self.to_light.sample(p, n, rng)
         };
 
         let mut pdf =
-            Uniform::pdf(n, &d) * cosine_prob + self.to_light.pdf(p, n, &d) * (1.0 - cosine_prob);
+            Cosine::pdf(n, &d) * cosine_prob + self.to_light.pdf(p, n, &d) * (1.0 - cosine_prob);
 
         if !(pdf > 0.0) {
             pdf = f32::INFINITY;
