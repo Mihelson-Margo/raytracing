@@ -4,7 +4,7 @@ use glm::Vec3;
 use rand::Rng;
 
 use crate::objects::{Geometry, Material, Object, RayIntersection};
-use crate::random::{Cosine, SampledDirection, ToLigth, Uniform, MIS};
+use crate::random::{ToLight, MIS};
 use crate::ray::Ray;
 use crate::Scene;
 
@@ -26,31 +26,29 @@ pub fn trace_ray(scene: &mut Scene, ray: &Ray, depth: usize) -> Vec3 {
         Material::Diffuse => {
             let color_obj = scene.objects[idx].color / PI;
 
-            // let new_dir = Cosine::sample(&normal, &mut scene.generator);
-            // let pdf = Cosine::pdf(&normal, &new_dir);
-
             let distribution = MIS {
-                to_light: ToLigth {
+                to_light: ToLight {
                     lights: &scene.lights,
                 },
             };
 
-            // let distribution = ToLigth {
-            //     lights: &scene.lights,
-            // };
-            let mut new_dir = SampledDirection { d: -normal, pdf: 0.0};
-            while glm::dot(&new_dir.d, &normal) < 0.0 {
-                new_dir = distribution.sample(&point, &normal, &mut scene.generator);
+            let new_dir = distribution.sample(&point, &normal, &mut scene.generator);
+            if glm::dot(&new_dir, &normal) < 0.0 {
+                Vec3::zeros()
+            } else {
+                let pdf = distribution.pdf(&point, &normal, &new_dir);
+                if !pdf.is_finite() || pdf < 1e-6 {
+                    Vec3::zeros()
+                } else {
+                    let new_ray = Ray::new_shifted(point, new_dir);
+                    let cos = glm::dot(&normal, &new_ray.direction);
+
+                    let color_in = trace_ray(scene, &new_ray, depth + 1);
+
+                    color_in.component_mul(&color_obj) * cos / pdf
+                }
+
             }
-
-            let new_ray = Ray::new_shifted(point, new_dir.d);
-            let cos = glm::dot(&normal, &new_ray.direction);
-
-            // assert!((cos / new_dir.pdf - PI).abs() < 0.001);
-
-            let color_in = trace_ray(scene, &new_ray, depth + 1);
-
-            color_in.component_mul(&color_obj) * cos / new_dir.pdf
         }
         Material::Metallic => {
             let reflected_ray = get_reflected_ray(&ray.direction, &point, &normal);

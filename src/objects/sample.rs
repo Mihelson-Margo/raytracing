@@ -1,7 +1,6 @@
 use std::f32::consts::PI;
 
 use glm::{vec3, Vec3};
-use itertools::izip;
 use rand::{rngs::ThreadRng, Rng};
 
 use super::{Ellipsoid, Parallelipiped, PositionedFigure};
@@ -13,7 +12,6 @@ pub trait Sample {
 
 impl<F: Sample> Sample for PositionedFigure<F> {
     fn sample(&self, rng: &mut ThreadRng) -> Vec3 {
-        // println!("Sample positioned!");
         let point = self.figure.sample(rng);
         self.rotation * point + self.position
     }
@@ -26,16 +24,13 @@ impl<F: Sample> Sample for PositionedFigure<F> {
 
 impl Sample for Parallelipiped {
     fn sample(&self, rng: &mut ThreadRng) -> Vec3 {
-        // println!("Sample box!");
-
         let (a, b, c) = (self.sizes.x, self.sizes.y, self.sizes.z);
         let area = a * b + b * c + a * c;
-        let sections = vec![a * b, a * b + a * c, area];
 
         let x = rng.gen_range(0.0..area);
-        let mut p = if x < sections[0] {
+        let mut p = if x < a * b {
             Vec3::z()
-        } else if x < sections[1] {
+        } else if x < a * b + a * c {
             Vec3::y()
         } else {
             Vec3::z()
@@ -46,16 +41,11 @@ impl Sample for Parallelipiped {
         }
         p = p.component_mul(&self.sizes);
 
-        // println!("Box axis point = {}, sizes = {}", p, self.sizes);
-
         for i in 0..3 {
             if p[i] == 0.0 {
-                // p[i] = rng.gen_range(-self.sizes[i]..self.sizes[i]);
-                p[i] = (rng.gen::<f32>() * 2.0 - 1.0) * self.sizes[i];
+                p[i] = rng.gen_range(-self.sizes[i]..self.sizes[i]);
             }
         }
-
-        // println!("Box point = {}", p);
 
         p
     }
@@ -69,7 +59,6 @@ impl Sample for Parallelipiped {
 
 impl Sample for Ellipsoid {
     fn sample(&self, rng: &mut ThreadRng) -> Vec3 {
-        // println!("sample ellips!");
         let p_sphere = sphere_uniform(rng);
         p_sphere.component_mul(&self.radiuses)
     }
