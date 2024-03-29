@@ -3,14 +3,14 @@ use std::f32::consts::PI;
 use glm::{vec3, Vec3};
 use rand::{rngs::ThreadRng, Rng};
 
-use super::{Ellipsoid, Parallelipiped, PositionedFigure};
+use super::{Ellipsoid, Figure, Parallelipiped, PositionedFigure, Triangle};
 
 pub trait Sample {
     fn sample(&self, rng: &mut ThreadRng) -> Vec3;
     fn pdf(&self, p: &Vec3) -> f32;
 }
 
-impl<F: Sample> Sample for PositionedFigure<F> {
+impl Sample for PositionedFigure {
     fn sample(&self, rng: &mut ThreadRng) -> Vec3 {
         let point = self.figure.sample(rng);
         self.rotation * point + self.position
@@ -19,6 +19,26 @@ impl<F: Sample> Sample for PositionedFigure<F> {
     fn pdf(&self, p: &Vec3) -> f32 {
         let q = self.rotation.inverse() * (p - self.position);
         self.figure.pdf(&q)
+    }
+}
+
+impl Sample for Figure {
+    fn sample(&self, rng: &mut ThreadRng) -> Vec3 {
+        match &self {
+            Figure::Plane(_) => panic!(),
+            Figure::Ellipsoid(ellipsoid) => ellipsoid.sample(rng),
+            Figure::Parallelipiped(parallelipiped) => parallelipiped.sample(rng),
+            Figure::Triangle(triangle) => triangle.sample(rng),
+        }
+    }
+
+    fn pdf(&self, p: &Vec3) -> f32 {
+        match &self {
+            Figure::Plane(_) => panic!(),
+            Figure::Ellipsoid(ellipsoid) => ellipsoid.pdf(p),
+            Figure::Parallelipiped(parallelipiped) => parallelipiped.pdf(p),
+            Figure::Triangle(triangle) => triangle.pdf(p),
+        }
     }
 }
 
@@ -71,6 +91,23 @@ impl Sample for Ellipsoid {
         let denom = n.x * r.y * r.z + r.x * n.y * r.z + r.x * r.y * n.z;
 
         1.0 / (4.0 * PI * denom.sqrt())
+    }
+}
+
+impl Sample for Triangle {
+    fn sample(&self, rng: &mut ThreadRng) -> Vec3 {
+        let mut a = rng.gen_range(0.0..1.0);
+        let mut b = rng.gen_range(0.0..1.0);
+        if a + b > 1.0 {
+            a = 1.0 - a;
+            b = 1.0 - b;
+        }
+
+        self.v + a * self.edge1 + b * self.edge2
+    }
+
+    fn pdf(&self, _p: &Vec3) -> f32 {
+        self.inv_area
     }
 }
 

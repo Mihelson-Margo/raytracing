@@ -1,6 +1,6 @@
 use glm::Vec3;
 
-use super::PositionedFigure;
+use super::{Figure, PositionedFigure};
 
 pub enum Material {
     Diffuse,
@@ -8,16 +8,16 @@ pub enum Material {
     Dielectric { ior: f32 },
 }
 
-pub struct Object<G> {
-    pub geometry: PositionedFigure<G>,
+pub struct Object {
+    pub geometry: PositionedFigure,
 
     pub color: Vec3,
     pub emission: Vec3,
     pub material: Material,
 }
 
-impl<G> Object<G> {
-    pub fn new(geometry: G) -> Self {
+impl Object {
+    pub fn new(geometry: Figure) -> Self {
         Self {
             geometry: PositionedFigure::new(geometry),
             color: Vec3::zeros(),

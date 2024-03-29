@@ -21,7 +21,7 @@ impl Uniform {
     }
 
     pub fn pdf(n: &Vec3, d: &Vec3) -> f32 {
-        if glm::dot(&d, n) <= 0.0 {
+        if glm::dot(d, n) <= 0.0 {
             0.0
         } else {
             0.5 / PI
@@ -65,11 +65,11 @@ fn sphere_uniform(rng: &mut ThreadRng) -> Vec3 {
     vec3(x, y, z)
 }
 
-pub struct ToLight<'a> {
-    pub lights: &'a [Box<dyn LightSource>],
+pub struct ToLight<'a, L> {
+    pub lights: &'a [L],
 }
 
-impl<'a> ToLight<'a> {
+impl<'a, L: LightSource> ToLight<'a, L> {
     pub fn sample(&self, p: &Vec3, rng: &mut ThreadRng) -> Vec3 {
         assert!(!self.lights.is_empty());
 
@@ -94,9 +94,7 @@ impl<'a> ToLight<'a> {
             };
             pdf += calc_intersection_pdf(obj, &ray, &i1, p);
 
-            let ray2 = Ray::new_shifted(
-                ray.origin + i1.t * ray.direction, ray.direction
-            );
+            let ray2 = Ray::new_shifted(ray.origin + i1.t * ray.direction, ray.direction);
 
             let Some(i2) = obj.intersect(&ray2) else {
                 continue;
@@ -109,8 +107,8 @@ impl<'a> ToLight<'a> {
     }
 }
 
-fn calc_intersection_pdf(
-    obj: &Box<dyn LightSource>,
+fn calc_intersection_pdf<L: LightSource>(
+    obj: &L,
     ray: &Ray,
     intersection: &RayIntersection,
     initial_point: &Vec3,
@@ -127,11 +125,11 @@ fn calc_intersection_pdf(
     pdf
 }
 
-pub struct MIS<'a> {
-    pub to_light: ToLight<'a>,
+pub struct MIS<'a, L> {
+    pub to_light: ToLight<'a, L>,
 }
 
-impl<'a> MIS<'a> {
+impl<'a, L: LightSource> MIS<'a, L> {
     pub fn sample(&self, p: &Vec3, n: &Vec3, rng: &mut ThreadRng) -> Vec3 {
         if rng.gen_bool(self.cosine_probability()) {
             Cosine::sample(n, rng)
@@ -142,13 +140,7 @@ impl<'a> MIS<'a> {
 
     pub fn pdf(&self, p: &Vec3, n: &Vec3, d: &Vec3) -> f32 {
         let a = self.cosine_probability() as f32;
-        let mut pdf =
-            Cosine::pdf(n, &d) * a + self.to_light.pdf(p, &d) * (1.0 - a);
-
-        // if !(pdf > 0.0) {
-        //     pdf = f32::INFINITY;
-        // }
-        pdf
+        Cosine::pdf(n, d) * a + self.to_light.pdf(p, d) * (1.0 - a)
     }
 
     fn cosine_probability(&self) -> f64 {

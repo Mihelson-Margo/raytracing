@@ -47,7 +47,6 @@ pub fn trace_ray(scene: &mut Scene, ray: &Ray, depth: usize) -> Vec3 {
 
                     color_in.component_mul(&color_obj) * cos / pdf
                 }
-
             }
         }
         Material::Metallic => {
@@ -100,7 +99,7 @@ fn calc_dielectric_color(
 }
 
 fn intersect_with_objects(
-    objects: &[Object<Box<dyn Geometry>>],
+    objects: &[Object],
     ray: &Ray,
     max_dist: f32,
 ) -> Option<(usize, RayIntersection)> {

@@ -1,5 +1,4 @@
 use glm::{vec3, Vec3};
-use itertools::izip;
 use na::{Matrix3, UnitQuaternion};
 use rand::rngs::ThreadRng;
 use std::fs::File;
@@ -17,8 +16,8 @@ pub struct Scene {
     pub background_color: Vec3,
     pub camera: Camera,
 
-    pub objects: Vec<Object<Box<dyn Geometry>>>,
-    pub lights: Vec<Box<dyn LightSource>>,
+    pub objects: Vec<Object>,
+    pub lights: Vec<PositionedFigure>,
 
     pub generator: ThreadRng,
 }
@@ -33,17 +32,9 @@ pub struct SceneParser {
     camera_axis: [Option<Vec3>; 3],
     camera_fov_x: Option<f32>,
 
-    objects: Vec<Object<Box<dyn Geometry>>>,
-    figure_types: Vec<FigureType>,
-    // mb_lights: Vec<(Box<dyn LightSource>, usize)>,
+    objects: Vec<Object>,
     ray_depth: Option<usize>,
     n_samples: Option<usize>,
-}
-
-enum FigureType {
-    Plane(Vec3),
-    Parallelipiped(Vec3),
-    Ellipsoid(Vec3),
 }
 
 impl SceneParser {
@@ -66,24 +57,16 @@ impl SceneParser {
             tg_fov_y,
         };
 
-        let lights = izip!(self.figure_types.into_iter(), self.objects.iter())
-            .filter_map(|(fig_type, obj)| {
+        let lights = self
+            .objects
+            .iter()
+            .filter_map(|obj| {
                 if glm::length2(&obj.emission) == 0.0 {
                     return None;
                 }
-                match fig_type {
-                    FigureType::Plane(_) => None,
-                    FigureType::Ellipsoid(radiuses) => Some(Box::new(PositionedFigure {
-                        figure: Ellipsoid { radiuses },
-                        position: obj.geometry.position,
-                        rotation: obj.geometry.rotation,
-                    })
-                        as Box<dyn LightSource>),
-                    FigureType::Parallelipiped(sizes) => Some(Box::new(PositionedFigure {
-                        figure: Parallelipiped { sizes },
-                        position: obj.geometry.position,
-                        rotation: obj.geometry.rotation,
-                    })),
+                match obj.geometry.figure {
+                    Figure::Plane(_) => None,
+                    _ => Some(obj.geometry.clone()),
                 }
             })
             .collect::<Vec<_>>();
@@ -139,22 +122,31 @@ pub fn parse_scene(path: &str) -> Scene {
             "NEW_PRIMITIVE" => {}
             "PLANE" => {
                 let normal = parse_vec3(&tokens[1..]);
-                parser.objects.push(Object::new(Box::new(Plane { normal })));
-                parser.figure_types.push(FigureType::Plane(normal));
+                parser
+                    .objects
+                    .push(Object::new(Figure::Plane(Plane { normal })));
             }
             "ELLIPSOID" => {
                 let radiuses = parse_vec3(&tokens[1..]);
                 parser
                     .objects
-                    .push(Object::new(Box::new(Ellipsoid { radiuses })));
-                parser.figure_types.push(FigureType::Ellipsoid(radiuses));
+                    .push(Object::new(Figure::Ellipsoid(Ellipsoid { radiuses })));
             }
             "BOX" => {
                 let sizes = parse_vec3(&tokens[1..]);
                 parser
                     .objects
-                    .push(Object::new(Box::new(Parallelipiped { sizes })));
-                parser.figure_types.push(FigureType::Parallelipiped(sizes));
+                    .push(Object::new(Figure::Parallelipiped(Parallelipiped {
+                        sizes,
+                    })));
+            }
+            "TRIANGLE" => {
+                let v1 = parse_vec3(&tokens[1..=3]);
+                let v2 = parse_vec3(&tokens[4..=6]);
+                let v3 = parse_vec3(&tokens[7..=9]);
+                parser
+                    .objects
+                    .push(Object::new(Figure::Triangle(Triangle::new(v1, v2, v3))));
             }
             "POSITION" => {
                 let position = parse_vec3(&tokens[1..]);

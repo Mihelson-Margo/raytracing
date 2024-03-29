@@ -1,9 +1,10 @@
 use glm::Vec3;
 use itertools::MultiUnzip;
+use na::Matrix3;
 
 use super::{
     figures::{Ellipsoid, Parallelipiped, Plane},
-    LightSource, PositionedFigure,
+    Figure, PositionedFigure, Triangle,
 };
 use crate::ray::Ray;
 
@@ -18,8 +19,7 @@ pub trait Geometry {
     fn intersect(&self, ray: &Ray) -> Option<RayIntersection>;
 }
 
-// TODO: fix!
-impl Geometry for PositionedFigure<Box<dyn Geometry>> {
+impl Geometry for PositionedFigure {
     fn intersect(&self, ray: &Ray) -> Option<RayIntersection> {
         let transformed_ray = Ray {
             origin: self.rotation.inverse() * (ray.origin - self.position),
@@ -36,20 +36,14 @@ impl Geometry for PositionedFigure<Box<dyn Geometry>> {
     }
 }
 
-impl<F: Geometry> Geometry for PositionedFigure<F> {
+impl Geometry for Figure {
     fn intersect(&self, ray: &Ray) -> Option<RayIntersection> {
-        let transformed_ray = Ray {
-            origin: self.rotation.inverse() * (ray.origin - self.position),
-            direction: self.rotation.inverse() * ray.direction,
-        };
-        let mut intersection = self.figure.intersect(&transformed_ray)?;
-
-        intersection.n = (self.rotation * intersection.n).normalize();
-        if glm::dot(&intersection.n, &ray.direction) > 0.0 {
-            intersection.n = -intersection.n;
+        match &self {
+            Figure::Plane(plane) => plane.intersect(ray),
+            Figure::Ellipsoid(ellipsoid) => ellipsoid.intersect(ray),
+            Figure::Parallelipiped(parallelipiped) => parallelipiped.intersect(ray),
+            Figure::Triangle(triangle) => triangle.intersect(ray),
         }
-
-        Some(intersection)
     }
 }
 
@@ -143,5 +137,31 @@ impl Geometry for Parallelipiped {
             is_inside: o.component_div(&self.sizes).abs().max() < 1.0,
             n,
         })
+    }
+}
+
+impl Geometry for Triangle {
+    fn intersect(&self, ray: &Ray) -> Option<RayIntersection> {
+        // TODO: fix
+        let mat = Matrix3::from_columns(&[self.edge1, self.edge2, -ray.direction]);
+        let Some(mat_inv) = mat.try_inverse() else {
+            return None;
+        };
+        let res = mat_inv * (ray.origin - self.v);
+        let u = res.x;
+        let v = res.y;
+        let t = res.z;
+
+        let is_inside = glm::dot(&self.normal, &ray.origin) < 0.0;
+
+        if t < 0.0 || u < 0.0 || v < 0.0 || u + v > 1.0 {
+            None
+        } else {
+            Some(RayIntersection {
+                t,
+                n: self.normal,
+                is_inside,
+            })
+        }
     }
 }
