@@ -1,6 +1,6 @@
 use glm::Vec3;
 
-use super::{Figure, PositionedFigure};
+use super::{Aabb, Figure, Geometry, PositionedFigure, RayIntersection};
 
 pub enum Material {
     Diffuse,
@@ -24,5 +24,15 @@ impl Object {
             emission: Vec3::zeros(),
             material: Material::Diffuse,
         }
+    }
+}
+
+impl Geometry for Object {
+    fn intersect(&self, ray: &crate::ray::Ray) -> Option<RayIntersection> {
+        self.geometry.intersect(ray)
+    }
+
+    fn calc_aabb(&self) -> Aabb {
+        self.geometry.calc_aabb()
     }
 }

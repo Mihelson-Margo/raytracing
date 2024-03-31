@@ -4,6 +4,7 @@ use rand::rngs::ThreadRng;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
 
+use crate::bvh::Bvh;
 use crate::camera::Camera;
 use crate::image::*;
 use crate::objects::*;
@@ -12,14 +13,13 @@ pub struct Scene {
     pub ray_depth: usize,
     pub n_samples: usize,
 
-    pub image: Image,
+    // pub image: Image,
     pub background_color: Vec3,
     pub camera: Camera,
 
-    pub objects: Vec<Object>,
+    // pub objects: Vec<Object>,
+    pub bvh: Bvh<Object>,
     pub lights: Vec<PositionedFigure>,
-
-    pub generator: ThreadRng,
 }
 
 #[derive(Default)]
@@ -38,7 +38,7 @@ pub struct SceneParser {
 }
 
 impl SceneParser {
-    pub fn create_scene(self) -> Scene {
+    pub fn create_scene(self) -> (Scene, Image) {
         let image = Image::new(self.image_width.unwrap(), self.image_height.unwrap());
 
         let tg_fov_x = (self.camera_fov_x.unwrap() / 2.0).tan();
@@ -71,20 +71,26 @@ impl SceneParser {
             })
             .collect::<Vec<_>>();
 
-        Scene {
-            ray_depth: self.ray_depth.unwrap(),
-            n_samples: self.n_samples.unwrap(),
+        let bvh = Bvh::new(self.objects);
+        bvh.print();
+
+        (
+            Scene {
+                ray_depth: self.ray_depth.unwrap(),
+                n_samples: self.n_samples.unwrap(),
+                // image,
+                background_color: self.background_color.unwrap(),
+                camera,
+                // objects: self.objects,
+                bvh,
+                lights,
+            },
             image,
-            background_color: self.background_color.unwrap(),
-            camera,
-            objects: self.objects,
-            lights,
-            generator: rand::thread_rng(),
-        }
+        )
     }
 }
 
-pub fn parse_scene(path: &str) -> Scene {
+pub fn parse_scene(path: &str) -> (Scene, Image) {
     let mut parser = SceneParser::default();
 
     let file = File::open(path).unwrap();

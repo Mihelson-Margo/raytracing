@@ -1,6 +1,7 @@
 use std::f32::consts::PI;
 
 use glm::Vec3;
+use rand::rngs::ThreadRng;
 use rand::Rng;
 
 use crate::objects::{Geometry, Material, Object, RayIntersection};
@@ -8,23 +9,25 @@ use crate::random::{ToLight, MIS};
 use crate::ray::Ray;
 use crate::Scene;
 
-pub fn trace_ray(scene: &mut Scene, ray: &Ray, depth: usize) -> Vec3 {
+pub fn trace_ray(scene: &Scene, ray: &Ray, depth: usize, rng: &mut ThreadRng) -> Vec3 {
     if depth >= scene.ray_depth {
         return Vec3::zeros();
     }
 
-    let Some((idx, intersection)) = intersect_with_objects(&scene.objects, ray, f32::INFINITY)
+    let Some((idx, intersection)) = scene.bvh.intersect(ray)
+    //intersect_with_objects(&scene.objects, ray, f32::INFINITY)
     else {
         return scene.background_color;
     };
 
+    let object = scene.bvh.get_object(idx);
     let point = ray.origin + intersection.t * ray.direction;
     let normal = intersection.n;
-    let emitted = scene.objects[idx].emission;
+    let emitted = object.emission;
 
-    let color = match scene.objects[idx].material {
+    let color = match object.material {
         Material::Diffuse => {
-            let color_obj = scene.objects[idx].color / PI;
+            let color_obj = object.color / PI;
 
             let distribution = MIS {
                 to_light: ToLight {
@@ -32,7 +35,7 @@ pub fn trace_ray(scene: &mut Scene, ray: &Ray, depth: usize) -> Vec3 {
                 },
             };
 
-            let new_dir = distribution.sample(&point, &normal, &mut scene.generator);
+            let new_dir = distribution.sample(&point, &normal, rng);
             if glm::dot(&new_dir, &normal) < 0.0 {
                 Vec3::zeros()
             } else {
@@ -43,7 +46,7 @@ pub fn trace_ray(scene: &mut Scene, ray: &Ray, depth: usize) -> Vec3 {
                     let new_ray = Ray::new_shifted(point, new_dir);
                     let cos = glm::dot(&normal, &new_ray.direction);
 
-                    let color_in = trace_ray(scene, &new_ray, depth + 1);
+                    let color_in = trace_ray(scene, &new_ray, depth + 1, rng);
 
                     color_in.component_mul(&color_obj) * cos / pdf
                 }
@@ -51,11 +54,12 @@ pub fn trace_ray(scene: &mut Scene, ray: &Ray, depth: usize) -> Vec3 {
         }
         Material::Metallic => {
             let reflected_ray = get_reflected_ray(&ray.direction, &point, &normal);
-            let color = trace_ray(scene, &reflected_ray, depth + 1);
-            color.component_mul(&scene.objects[idx].color)
+            let color = trace_ray(scene, &reflected_ray, depth + 1, rng);
+            color.component_mul(&scene.bvh.get_object(idx).color)
         }
         Material::Dielectric { ior } => calc_dielectric_color(
             scene,
+            rng,
             ray,
             &point,
             &normal,
@@ -70,7 +74,8 @@ pub fn trace_ray(scene: &mut Scene, ray: &Ray, depth: usize) -> Vec3 {
 }
 
 fn calc_dielectric_color(
-    scene: &mut Scene,
+    scene: &Scene,
+    rng: &mut ThreadRng,
     ray: &Ray,
     point: &Vec3,
     normal: &Vec3,
@@ -86,15 +91,15 @@ fn calc_dielectric_color(
     let maybe_refracetd_ray = get_refracted_ray(&ray.direction, point, normal, eta);
     let coeff = schilcks_coeff(eta, -glm::dot(&ray.direction, normal));
 
-    if maybe_refracetd_ray.is_some() && (scene.generator.gen::<f32>() < 1.0 - coeff) {
+    if maybe_refracetd_ray.is_some() && (rng.gen::<f32>() < 1.0 - coeff) {
         let refracted_ray = maybe_refracetd_ray.unwrap();
-        let mut color = trace_ray(scene, &refracted_ray, depth + 1);
+        let mut color = trace_ray(scene, &refracted_ray, depth + 1, rng);
         if !is_inside {
-            color.component_mul_assign(&scene.objects[object_idx].color);
+            color.component_mul_assign(&scene.bvh.get_object(object_idx).color);
         }
         color
     } else {
-        trace_ray(scene, &reflected_ray, depth + 1)
+        trace_ray(scene, &reflected_ray, depth + 1, rng)
     }
 }
 

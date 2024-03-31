@@ -6,7 +6,7 @@ use std::io::Write;
 pub struct Image {
     pub width: usize,
     pub height: usize,
-    data: Vec<Vec3>,
+    pub data: Vec<Vec3>,
 }
 
 impl Image {

@@ -10,3 +10,5 @@ glm = { version = "0.18.0", package = "nalgebra-glm" }
 na = { package = "nalgebra", version = "0.32.1" }
 itertools="0.11.0"
 rand="0.8.5"
+noisy_float = "0.2.0"
+simple_parallel = "0.2"
