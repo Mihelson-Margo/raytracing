@@ -13,13 +13,13 @@ use rand::Rng;
 use trace::trace_ray;
 
 fn render(scene: &Scene, image: &mut Image) {
-    let mut pool = simple_parallel::Pool::new(4);
+    let mut pool = simple_parallel::Pool::new(8);
     for step in 0..scene.n_samples {
         pool.for_(image.data.iter_mut().enumerate(), |(ii, pixel)| {
             // for i in 0..scene.image.width {
             //     for j in 0..scene.image.height {
-            let i = ii % image.height;
-            let j = image.height - 1 - ii / image.height;
+            let i = ii % image.width;
+            let j = image.height - 1 - ii / image.width;
 
             let mut rng = rand::thread_rng();
             let du = rng.gen::<f32>();
