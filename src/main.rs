@@ -12,8 +12,13 @@ use parser::*;
 use rand::Rng;
 use trace::trace_ray;
 
+extern crate num_cpus;
+
 fn render(scene: &Scene, image: &mut Image) {
-    let mut pool = simple_parallel::Pool::new(8);
+    let n_cpus = num_cpus::get();
+    println!("# {}", n_cpus);
+
+    let mut pool = simple_parallel::Pool::new(n_cpus);
     for step in 0..scene.n_samples {
         pool.for_(image.data.iter_mut().enumerate(), |(ii, pixel)| {
             // for i in 0..scene.image.width {
@@ -41,7 +46,7 @@ fn render(scene: &Scene, image: &mut Image) {
 }
 
 fn main() {
-    let input = std::env::args().nth(1).unwrap_or("assets/scene.txt".into());
+    let input = std::env::args().nth(1).unwrap_or("assets/scene-worst.txt".into());
     let output = std::env::args().nth(2).unwrap_or("/tmp/out.ppm".into());
 
     let (scene, mut image) = parse_scene(&input);
