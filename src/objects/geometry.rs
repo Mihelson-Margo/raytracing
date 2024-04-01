@@ -1,3 +1,5 @@
+use std::mem::swap;
+
 use glm::{vec3, Vec3};
 use itertools::MultiUnzip;
 use na::Matrix3;
@@ -184,14 +186,13 @@ impl Geometry for Parallelipiped {
         let o = ray.origin;
         let d = ray.direction;
 
-        let (l, r): (Vec<_>, Vec<_>) = (0..3)
-            .map(|i| {
-                let t1 = (self.sizes[i] - o[i]) / d[i];
-                let t2 = (-self.sizes[i] - o[i]) / d[i];
-
-                (t1.min(t2), t1.max(t2))
-            })
-            .multiunzip();
+        let mut l = (self.sizes - o).component_div(&d);
+        let mut r = (-self.sizes - o).component_div(&d);
+        for i in 0..3 {
+            if l[i] > r[i] {
+                swap(&mut l[i], &mut r[i]);
+            }
+        }
 
         let t1 = l[0].max(l[1]).max(l[2]);
         let t2 = r[0].min(r[1]).min(r[2]);

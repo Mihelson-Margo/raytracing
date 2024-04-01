@@ -74,7 +74,7 @@ impl<G: Geometry> Bvh<G> {
         // let (axis, _) = (node.aabb.max - node.aabb.min).argmax();
         // let split_value = node.aabb.max[axis] + node.aabb.min[axis];
 
-        let mut best_split = (0, 0.0);
+        let mut best_split = (0, f32::INFINITY);
         let mut best_quality = node.aabb.area() * (to_idx - from_idx) as f32;
         for axis in 0..3 {
             aabbs.sort_by_key(|a| R32::try_new(a.min[axis] + a.max[axis]).unwrap());
@@ -134,9 +134,6 @@ impl<G: Geometry> Bvh<G> {
         self.nodes[node_idx].children = Some((left_node_idx, left_node_idx + 1));
         self.build_node(left_node_idx, from_idx, split_idx);
         self.build_node(left_node_idx + 1, split_idx, to_idx);
-
-        // let mut indices = (0..(to_idx - from_idx)).collect::<Vec<_>>();
-        // indices.sort_by_key(|&i| aabbs[i].max[axis] + aabbs[i].min[axis]);
     }
 
     fn intersect_node(
