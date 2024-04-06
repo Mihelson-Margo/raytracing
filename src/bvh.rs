@@ -18,7 +18,10 @@ pub struct Bvh<G> {
     nodes: Vec<Node>,
     root: usize,
     objects: Vec<G>,
+    leaves_cnt: usize,
 }
+
+// type Callback = Fn (usize, usize) -> f32;
 
 impl<G: Geometry> Bvh<G> {
     pub fn new(mut objects: Vec<G>) -> Self {
@@ -38,6 +41,7 @@ impl<G: Geometry> Bvh<G> {
             nodes: vec![root],
             root: 0,
             objects,
+            leaves_cnt: 0,
         };
 
         bvh.build_node(0, last_root_idx, bvh.objects.len());
@@ -49,8 +53,19 @@ impl<G: Geometry> Bvh<G> {
         self.intersect_node(self.root, ray, None)
     }
 
+    pub fn intersect_all<F>(&self, ray: &Ray, callback: &F) -> f32
+    where
+        F: Fn(&G, &Ray, &RayIntersection) -> f32,
+    {
+        self.intersect_all_in_node(self.root, ray, callback)
+    }
+
     pub fn get_object(&self, object_idx: usize) -> &'_ G {
         &self.objects[object_idx]
+    }
+
+    pub fn get_n_objects(&self) -> usize {
+        self.objects.len()
     }
 
     fn build_node(&mut self, node_idx: usize, from_idx: usize, to_idx: usize) {
@@ -68,6 +83,7 @@ impl<G: Geometry> Bvh<G> {
             // TODO: fix this hack
             // node.last_obj_idx = node.last_obj_idx.max(to_idx);
             mark_terminal_node(node, from_idx, to_idx);
+            self.leaves_cnt += 1;
             return;
         }
 
@@ -112,6 +128,7 @@ impl<G: Geometry> Bvh<G> {
         if split_idx == 0 || split_idx == to_idx - from_idx {
             // node.last_obj_idx = node.last_obj_idx.max(to_idx);
             mark_terminal_node(node, from_idx, to_idx);
+            self.leaves_cnt += 1;
             return;
         }
         split_idx += from_idx;
@@ -183,10 +200,40 @@ impl<G: Geometry> Bvh<G> {
         intersection
     }
 
+    fn intersect_all_in_node<F>(&self, node_idx: usize, ray: &Ray, callback: &F) -> f32
+    where
+        F: Fn(&G, &Ray, &RayIntersection) -> f32,
+    {
+        let mut result = 0.0;
+        let node = &self.nodes[node_idx];
+
+        for idx in node.first_obj_idx..node.last_obj_idx {
+            let obj = &self.objects[idx];
+            if let Some(intersection) = obj.intersect(ray).map(|i| (idx, i)) {
+                result += callback(obj, ray, &intersection.1);
+            }
+        }
+
+        let Some((left, right)) = node.children else {
+            return result;
+        };
+
+        if self.nodes[left].aabb.intersect(ray).is_some() {
+            result += self.intersect_all_in_node(left, ray, callback);
+        }
+
+        if self.nodes[right].aabb.intersect(ray).is_some() {
+            result += self.intersect_all_in_node(right, ray, callback);
+        }
+
+        result
+    }
+
     pub fn print(&self) {
         println!(
-            "Bhv has {} nodes and {} objects",
+            "Bhv has {} nodes, {} leaves and {} objects",
             self.nodes.len(),
+            self.leaves_cnt,
             self.objects.len()
         );
         println!("Depth: {}", self.dfs(self.root));

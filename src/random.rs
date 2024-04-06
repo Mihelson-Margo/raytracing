@@ -3,6 +3,7 @@ use na::Matrix3;
 use rand::{rngs::ThreadRng, Rng};
 use std::f32::consts::PI;
 
+use crate::bvh::Bvh;
 use crate::objects::{LightSource, RayIntersection};
 use crate::ray::Ray;
 
@@ -66,43 +67,45 @@ fn sphere_uniform(rng: &mut ThreadRng) -> Vec3 {
 }
 
 pub struct ToLight<'a, L> {
-    pub lights: &'a [L],
+    pub lights: &'a Bvh<L>,
 }
 
 impl<'a, L: LightSource> ToLight<'a, L> {
     pub fn sample(&self, p: &Vec3, rng: &mut ThreadRng) -> Vec3 {
-        assert!(!self.lights.is_empty());
+        let n_lights = self.lights.get_n_objects();
+        assert!(n_lights > 0);
 
-        let idx = rng.gen_range(0..self.lights.len());
-        let obj = &self.lights[idx];
+        let idx = rng.gen_range(0..n_lights);
+        let obj = &self.lights.get_object(idx);
         let p_light = obj.sample(rng);
 
         (p_light - p).normalize()
     }
 
     pub fn pdf(&self, p: &Vec3, d: &Vec3) -> f32 {
-        if self.lights.is_empty() {
+        let n_lights = self.lights.get_n_objects();
+        if n_lights == 0 {
             return 0.0;
         }
 
         let ray = Ray::new(*p, *d);
-        let mut pdf = 0.0;
+        let mut pdf = self.lights.intersect_all(&ray, &calc_intersection_pdf);
 
-        for obj in self.lights.iter() {
-            let Some(i1) = obj.intersect(&ray) else {
-                continue;
-            };
-            pdf += calc_intersection_pdf(obj, &ray, &i1, p);
+        // for obj in self.lights.iter() {
+        //     let Some(i1) = obj.intersect(&ray) else {
+        //         continue;
+        //     };
+        //     pdf += calc_intersection_pdf(obj, &ray, &i1, p);
 
-            let ray2 = Ray::new_shifted(ray.origin + i1.t * ray.direction, ray.direction);
+        //     let ray2 = Ray::new_shifted(ray.origin + i1.t * ray.direction, ray.direction);
 
-            let Some(i2) = obj.intersect(&ray2) else {
-                continue;
-            };
-            pdf += calc_intersection_pdf(obj, &ray2, &i2, p);
-        }
+        //     let Some(i2) = obj.intersect(&ray2) else {
+        //         continue;
+        //     };
+        //     pdf += calc_intersection_pdf(obj, &ray2, &i2, p);
+        // }
 
-        pdf /= self.lights.len() as f32;
+        pdf /= n_lights as f32;
         pdf
     }
 }
@@ -111,10 +114,9 @@ fn calc_intersection_pdf<L: LightSource>(
     obj: &L,
     ray: &Ray,
     intersection: &RayIntersection,
-    initial_point: &Vec3,
 ) -> f32 {
     let obj_point = ray.origin + intersection.t * ray.direction;
-    let dist = glm::length2(&(initial_point - obj_point));
+    let dist = glm::length2(&(ray.origin - obj_point));
     let cos = glm::dot(&ray.direction, &intersection.n).abs();
 
     let mut pdf = obj.pdf(&obj_point) * dist / cos;
@@ -124,6 +126,24 @@ fn calc_intersection_pdf<L: LightSource>(
 
     pdf
 }
+
+// fn calc_intersection_pdf<L: LightSource>(
+//     obj: &L,
+//     ray: &Ray,
+//     intersection: &RayIntersection,
+//     initial_point: &Vec3,
+// ) -> f32 {
+//     let obj_point = ray.origin + intersection.t * ray.direction;
+//     let dist = glm::length2(&(initial_point - obj_point));
+//     let cos = glm::dot(&ray.direction, &intersection.n).abs();
+
+//     let mut pdf = obj.pdf(&obj_point) * dist / cos;
+//     if !pdf.is_finite() {
+//         pdf = 0.0;
+//     }
+
+//     pdf
+// }
 
 pub struct MIS<'a, L> {
     pub to_light: ToLight<'a, L>,
@@ -144,7 +164,7 @@ impl<'a, L: LightSource> MIS<'a, L> {
     }
 
     fn cosine_probability(&self) -> f64 {
-        if self.to_light.lights.is_empty() {
+        if self.to_light.lights.get_n_objects() == 0 {
             1.0
         } else {
             0.5

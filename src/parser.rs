@@ -1,4 +1,4 @@
-use glm::{vec3, Vec3};
+use glm::{length2, vec3, Vec3};
 use na::{Matrix3, UnitQuaternion};
 use rand::rngs::ThreadRng;
 use std::fs::File;
@@ -18,8 +18,9 @@ pub struct Scene {
     pub camera: Camera,
 
     // pub objects: Vec<Object>,
+    // pub lights: Vec<PositionedFigure>,
     pub bvh: Bvh<Object>,
-    pub lights: Vec<PositionedFigure>,
+    pub lights_bvh: Bvh<PositionedFigure>,
 }
 
 #[derive(Default)]
@@ -73,6 +74,10 @@ impl SceneParser {
 
         let bvh = Bvh::new(self.objects);
         bvh.print();
+        let lights_bvh = Bvh::new(lights);
+        println!("==== Lights BVH ====");
+        lights_bvh.print();
+        // println!("{} lights", lights.len());
 
         (
             Scene {
@@ -83,7 +88,7 @@ impl SceneParser {
                 camera,
                 // objects: self.objects,
                 bvh,
-                lights,
+                lights_bvh,
             },
             image,
         )

@@ -31,7 +31,7 @@ pub fn trace_ray(scene: &Scene, ray: &Ray, depth: usize, rng: &mut ThreadRng) ->
 
             let distribution = MIS {
                 to_light: ToLight {
-                    lights: &scene.lights,
+                    lights: &scene.lights_bvh,
                 },
             };
 
