@@ -1,12 +1,14 @@
 use glm::{vec3, Vec3};
 use na::SimdPartialOrd;
+use std::cell::RefCell;
 use std::fs::File;
 use std::io::Write;
+use std::sync::{Arc, RwLock};
 
 pub struct Image {
     pub width: usize,
     pub height: usize,
-    pub data: Vec<Vec3>,
+    pub data: Vec<Arc<RwLock<Vec3>>>,
 }
 
 impl Image {
@@ -14,19 +16,20 @@ impl Image {
         Self {
             width,
             height,
-            data: vec![Vec3::zeros(); width * height],
+            data: (0..width*height).map(|_|
+                Arc::new(RwLock::new(Vec3::zeros()))).collect::<Vec<_>>(),
         }
     }
 
-    pub fn get(&self, u: usize, v: usize) -> Vec3 {
-        let v = self.height - 1 - v;
-        self.data[self.width * v + u]
-    }
+    // pub fn get(&self, u: usize, v: usize) -> Vec3 {
+    //     let v = self.height - 1 - v;
+    //     self.data[self.width * v + u]
+    // }
 
-    pub fn set(&mut self, u: usize, v: usize, color: Vec3) {
-        let v = self.height - 1 - v;
-        self.data[self.width * v + u] = color;
-    }
+    // pub fn set(&mut self, u: usize, v: usize, color: Vec3) {
+    //     let v = self.height - 1 - v;
+    //     self.data[self.width * v + u] = color;
+    // }
 
     pub fn write(&self, path: &str) {
         let mut file = File::create(path).unwrap();
@@ -39,6 +42,7 @@ impl Image {
             .data
             .iter()
             .flat_map(|color| {
+                let color = color.read().unwrap();
                 [color.x, color.y, color.z]
                     .into_iter()
                     .map(|x| (255.0 * x).round() as u8)
@@ -50,9 +54,9 @@ impl Image {
 
     pub fn color_correction(&mut self) {
         for color in &mut self.data {
-            let c = aces_tonemap(color);
+            let c = aces_tonemap(&mut color.write().unwrap());
             let c = gamma_correction(&c);
-            *color = c;
+            *color.write().unwrap() = c;
         }
     }
 }

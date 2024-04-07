@@ -13,6 +13,7 @@ rand="0.8.5"
 noisy_float = "0.2.0"
 simple_parallel = "0.2"
 num_cpus = "1.0"
+threadpool = "1.8.1"
 
 [profile.release]
 opt-level = 1
