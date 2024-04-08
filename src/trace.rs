@@ -15,7 +15,7 @@ pub fn trace_ray(scene: &Scene, ray: &Ray, depth: usize, rng: &mut ThreadRng) ->
     }
 
     let Some((idx, intersection)) = scene.bvh.intersect(ray)
-    //intersect_with_objects(&scene.objects, ray, f32::INFINITY)
+    //intersect_with_objects(&scene.bvh.objects, ray, f32::INFINITY)
     else {
         return scene.background_color;
     };

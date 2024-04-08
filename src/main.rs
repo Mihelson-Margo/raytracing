@@ -7,8 +7,8 @@ mod random;
 mod ray;
 mod trace;
 
-use std::{iter::repeat, sync::Arc};
 use std::cell::RefCell;
+use std::{iter::repeat, sync::Arc};
 
 use rand::{rngs::ThreadRng, Rng};
 use threadpool::ThreadPool;
@@ -55,7 +55,6 @@ fn render(scene: Arc<Scene>, image: &mut Image) {
     //        // }
     //    })
 
-
     let w = image.width;
     let h = image.height;
 
@@ -67,30 +66,32 @@ fn render(scene: Arc<Scene>, image: &mut Image) {
             let pixel = Arc::clone(&pixel);
 
             pool.execute(move || {
-            let i = ii % w;
-            let j = h - 1 - ii / w;
+                let i = ii % w;
+                let j = h - 1 - ii / w;
 
-            let mut rng = rand::thread_rng();
+                let mut rng = rand::thread_rng();
 
-            let du = rng.gen::<f32>();
-            let dv = rng.gen::<f32>();
-            let u = (i as f32 + du) / w as f32 * 2.0 - 1.0;
-            let v = (j as f32 + dv) / h as f32 * 2.0 - 1.0;
-            let ray = scene.camera.ray_to_point(u, v);
+                let du = rng.gen::<f32>();
+                let dv = rng.gen::<f32>();
+                let u = (i as f32 + du) / w as f32 * 2.0 - 1.0;
+                let v = (j as f32 + dv) / h as f32 * 2.0 - 1.0;
+                let ray = scene.camera.ray_to_point(u, v);
 
-            let old_color = pixel.read().unwrap().clone();
-            let color = trace_ray(&scene, &ray, 0, &mut rng);
-            let step_f = step as f32;
-            let new_color = (old_color * step_f + color) / (step_f + 1.0);
-            *pixel.write().unwrap() = new_color;
-        });
+                let old_color = pixel.read().unwrap().clone();
+                let color = trace_ray(&scene, &ray, 0, &mut rng);
+                let step_f = step as f32;
+                let new_color = (old_color * step_f + color) / (step_f + 1.0);
+                *pixel.write().unwrap() = new_color;
+            });
         }
     }
     pool.join();
 }
 
 fn main() {
-    let input = std::env::args().nth(1).unwrap_or("assets/scene.txt".into());
+    let input = std::env::args()
+        .nth(1)
+        .unwrap_or("assets/scene-worst.txt".into());
     let output = std::env::args().nth(2).unwrap_or("/tmp/out.ppm".into());
 
     let (scene, mut image) = parse_scene(&input);

@@ -17,7 +17,7 @@ struct Node {
 pub struct Bvh<G> {
     nodes: Vec<Node>,
     root: usize,
-    objects: Vec<G>,
+    pub objects: Vec<G>,
     leaves_cnt: usize,
 }
 
@@ -184,6 +184,7 @@ impl<G: Geometry> Bvh<G> {
         if is_closer(&intersection, &left_i) {
             return intersection;
         }
+
         let new_intersection = self.intersect_node(left, ray, intersection.clone());
         if is_closer(&new_intersection, &intersection) {
             intersection = new_intersection;
@@ -251,13 +252,37 @@ impl<G: Geometry> Bvh<G> {
         };
         self.dfs(l).max(self.dfs(r)) + 1
     }
+
+    pub fn check_bvh(&self) {
+        let mut mask = vec![false; self.objects.len()];
+        for node in &self.nodes {
+            for idx in node.first_obj_idx..node.last_obj_idx {
+                assert!(!mask[idx]);
+                mask[idx] = true;
+            }
+
+            if let Some((l, r)) = node.children {
+                assert!(node.aabb.contains(&self.nodes[l].aabb));
+                assert!(node.aabb.contains(&self.nodes[r].aabb));
+            }
+        }
+
+        for val in &mask {
+            assert!(val);
+        }
+
+        println!("OK!");
+        // assert!(false);
+    }
 }
 
 fn is_closer(
     one: &Option<(usize, RayIntersection)>,
     other: &Option<(usize, RayIntersection)>,
 ) -> bool {
-    let t = one.as_ref().map(|i| i.1.t).unwrap_or(f32::INFINITY);
+    let Some(t) = one.as_ref().map(|i| i.1.t) else {
+        return false;
+    };
     let t_other = other.as_ref().map(|i| i.1.t).unwrap_or(f32::INFINITY);
     t < t_other
 }

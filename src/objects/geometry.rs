@@ -10,7 +10,7 @@ use super::{
 };
 use crate::ray::Ray;
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct RayIntersection {
     pub t: f32,
     pub n: Vec3,
@@ -58,7 +58,11 @@ impl Aabb {
         let parallelipiped = Parallelipiped {
             sizes: (self.max - self.min) / 2.0,
         };
-        parallelipiped.intersect(&transformed_ray)
+        parallelipiped.intersect_checked(&transformed_ray, false)
+    }
+
+    pub fn contains(&self, other: &Aabb) -> bool {
+        (self.min <= other.min) && (other.max <= self.max)
     }
 }
 
@@ -181,8 +185,8 @@ impl Geometry for Ellipsoid {
     }
 }
 
-impl Geometry for Parallelipiped {
-    fn intersect(&self, ray: &Ray) -> Option<RayIntersection> {
+impl Parallelipiped {
+    fn intersect_checked(&self, ray: &Ray, check_neg_t: bool) -> Option<RayIntersection> {
         let o = ray.origin;
         let d = ray.direction;
 
@@ -199,7 +203,7 @@ impl Geometry for Parallelipiped {
 
         let t = if t1 > t2 {
             None
-        } else if t1 >= 0.0 {
+        } else if (t1 >= 0.0) || (!check_neg_t) {
             Some(t1)
         } else if t2 >= 0.0 {
             Some(t2)
@@ -217,6 +221,12 @@ impl Geometry for Parallelipiped {
             is_inside: o.component_div(&self.sizes).abs().max() < 1.0,
             n,
         })
+    }
+}
+
+impl Geometry for Parallelipiped {
+    fn intersect(&self, ray: &Ray) -> Option<RayIntersection> {
+        self.intersect_checked(ray, true)
     }
 
     fn calc_aabb(&self) -> Aabb {

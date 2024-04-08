@@ -16,8 +16,9 @@ impl Image {
         Self {
             width,
             height,
-            data: (0..width*height).map(|_|
-                Arc::new(RwLock::new(Vec3::zeros()))).collect::<Vec<_>>(),
+            data: (0..width * height)
+                .map(|_| Arc::new(RwLock::new(Vec3::zeros())))
+                .collect::<Vec<_>>(),
         }
     }
 

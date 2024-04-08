@@ -23,8 +23,7 @@ impl Uniform {
 
     pub fn pdf(n: &Vec3, d: &Vec3) -> f32 {
         if glm::dot(d, n) <= 0.0 {
-            0.0
-        } else {
+            0.0 } else {
             0.5 / PI
         }
     }
@@ -91,18 +90,19 @@ impl<'a, L: LightSource> ToLight<'a, L> {
         let ray = Ray::new(*p, *d);
         let mut pdf = self.lights.intersect_all(&ray, &calc_intersection_pdf);
 
-        // for obj in self.lights.iter() {
+        // let mut pdf = 0.0;
+        // for obj in self.lights.objects.iter() {
         //     let Some(i1) = obj.intersect(&ray) else {
         //         continue;
         //     };
-        //     pdf += calc_intersection_pdf(obj, &ray, &i1, p);
+        //     pdf += calc_intersection_pdf_old(obj, &ray, &i1, p);
 
         //     let ray2 = Ray::new_shifted(ray.origin + i1.t * ray.direction, ray.direction);
 
         //     let Some(i2) = obj.intersect(&ray2) else {
         //         continue;
         //     };
-        //     pdf += calc_intersection_pdf(obj, &ray2, &i2, p);
+        //     pdf += calc_intersection_pdf_old(obj, &ray2, &i2, p);
         // }
 
         pdf /= n_lights as f32;
@@ -127,7 +127,7 @@ fn calc_intersection_pdf<L: LightSource>(
     pdf
 }
 
-// fn calc_intersection_pdf<L: LightSource>(
+// fn calc_intersection_pdf_old<L: LightSource>(
 //     obj: &L,
 //     ray: &Ray,
 //     intersection: &RayIntersection,
