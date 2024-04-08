@@ -8,7 +8,7 @@ use std::sync::{Arc, RwLock};
 pub struct Image {
     pub width: usize,
     pub height: usize,
-    pub data: Vec<Arc<RwLock<Vec3>>>,
+    pub data: Vec<Vec3>,
 }
 
 impl Image {
@@ -17,7 +17,7 @@ impl Image {
             width,
             height,
             data: (0..width * height)
-                .map(|_| Arc::new(RwLock::new(Vec3::zeros())))
+                .map(|_| Vec3::zeros())
                 .collect::<Vec<_>>(),
         }
     }
@@ -43,7 +43,6 @@ impl Image {
             .data
             .iter()
             .flat_map(|color| {
-                let color = color.read().unwrap();
                 [color.x, color.y, color.z]
                     .into_iter()
                     .map(|x| (255.0 * x).round() as u8)
@@ -55,9 +54,9 @@ impl Image {
 
     pub fn color_correction(&mut self) {
         for color in &mut self.data {
-            let c = aces_tonemap(&mut color.write().unwrap());
+            let c = aces_tonemap(color);
             let c = gamma_correction(&c);
-            *color.write().unwrap() = c;
+            *color = c;
         }
     }
 }

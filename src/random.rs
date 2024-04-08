@@ -23,7 +23,8 @@ impl Uniform {
 
     pub fn pdf(n: &Vec3, d: &Vec3) -> f32 {
         if glm::dot(d, n) <= 0.0 {
-            0.0 } else {
+            0.0
+        } else {
             0.5 / PI
         }
     }

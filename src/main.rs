@@ -7,11 +7,10 @@ mod random;
 mod ray;
 mod trace;
 
-use std::cell::RefCell;
 use std::{iter::repeat, sync::Arc};
 
 use rand::{rngs::ThreadRng, Rng};
-use threadpool::ThreadPool;
+use rayon::prelude::*;
 
 use image::Image;
 use parser::*;
@@ -58,34 +57,62 @@ fn render(scene: Arc<Scene>, image: &mut Image) {
     let w = image.width;
     let h = image.height;
 
-    let pool = ThreadPool::new(n_cpus);
+    let pixels = (0..w * h)
+        .collect::<Vec<_>>()
+        .par_iter()
+        .map(|ii| {
+            let i = ii % w;
+            let j = h - 1 - ii / w;
 
-    for step in 0..scene.n_samples {
-        for (ii, pixel) in image.data.iter_mut().enumerate() {
-            let scene = Arc::clone(&scene);
-            let pixel = Arc::clone(&pixel);
+            let mut rng = rand::thread_rng();
+            let mut total_color = glm::Vec3::zeros();
 
-            pool.execute(move || {
-                let i = ii % w;
-                let j = h - 1 - ii / w;
-
-                let mut rng = rand::thread_rng();
-
+            for step in 0..scene.n_samples {
                 let du = rng.gen::<f32>();
                 let dv = rng.gen::<f32>();
                 let u = (i as f32 + du) / w as f32 * 2.0 - 1.0;
                 let v = (j as f32 + dv) / h as f32 * 2.0 - 1.0;
                 let ray = scene.camera.ray_to_point(u, v);
 
-                let old_color = pixel.read().unwrap().clone();
+                let old_color = total_color;
                 let color = trace_ray(&scene, &ray, 0, &mut rng);
                 let step_f = step as f32;
-                let new_color = (old_color * step_f + color) / (step_f + 1.0);
-                *pixel.write().unwrap() = new_color;
-            });
-        }
-    }
-    pool.join();
+                total_color = (old_color * step_f + color) / (step_f + 1.0);
+            }
+            total_color
+        })
+        .collect::<Vec<_>>();
+
+    image.data = pixels;
+
+    // let pool = ThreadPool::new(n_cpus);
+
+    //     for step in 0..scene.n_samples {
+    //         for (ii, pixel) in image.data.iter_mut().enumerate() {
+    //             let scene = Arc::clone(&scene);
+    //             let pixel = Arc::clone(&pixel);
+
+    //             pool.execute(move || {
+    //                 let i = ii % w;
+    //                 let j = h - 1 - ii / w;
+
+    //                 let mut rng = rand::thread_rng();
+
+    //                 let du = rng.gen::<f32>();
+    //                 let dv = rng.gen::<f32>();
+    //                 let u = (i as f32 + du) / w as f32 * 2.0 - 1.0;
+    //                 let v = (j as f32 + dv) / h as f32 * 2.0 - 1.0;
+    //                 let ray = scene.camera.ray_to_point(u, v);
+
+    //                 let old_color = pixel.read().unwrap().clone();
+    //                 let color = trace_ray(&scene, &ray, 0, &mut rng);
+    //                 let step_f = step as f32;
+    //                 let new_color = (old_color * step_f + color) / (step_f + 1.0);
+    //                 *pixel.write().unwrap() = new_color;
+    //             });
+    //         }
+    //     }
+    //     pool.join();
 }
 
 fn main() {
