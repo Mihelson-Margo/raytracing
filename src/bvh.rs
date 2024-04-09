@@ -6,6 +6,8 @@ use crate::{
     ray::Ray,
 };
 
+const EPS: f32 = 1e-4;
+
 #[derive(Debug)]
 struct Node {
     aabb: Aabb,
@@ -210,8 +212,17 @@ impl<G: Geometry> Bvh<G> {
 
         for idx in node.first_obj_idx..node.last_obj_idx {
             let obj = &self.objects[idx];
-            if let Some(intersection) = obj.intersect(ray).map(|i| (idx, i)) {
-                result += callback(obj, ray, &intersection.1);
+            if let Some(intersection) = obj.intersect(ray) {
+                result += callback(obj, ray, &intersection);
+
+                let shifted_ray = Ray {
+                    origin: ray.origin + (intersection.t + EPS) * ray.direction,
+                    direction: ray.direction,
+                };
+                if let Some(mut intersection2) = obj.intersect(&shifted_ray) {
+                    intersection2.t += intersection.t + EPS;
+                    result += callback(obj, ray, &intersection2);
+                }
             }
         }
 

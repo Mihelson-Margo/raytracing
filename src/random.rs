@@ -128,23 +128,23 @@ fn calc_intersection_pdf<L: LightSource>(
     pdf
 }
 
-// fn calc_intersection_pdf_old<L: LightSource>(
-//     obj: &L,
-//     ray: &Ray,
-//     intersection: &RayIntersection,
-//     initial_point: &Vec3,
-// ) -> f32 {
-//     let obj_point = ray.origin + intersection.t * ray.direction;
-//     let dist = glm::length2(&(initial_point - obj_point));
-//     let cos = glm::dot(&ray.direction, &intersection.n).abs();
+fn calc_intersection_pdf_old<L: LightSource>(
+    obj: &L,
+    ray: &Ray,
+    intersection: &RayIntersection,
+    initial_point: &Vec3,
+) -> f32 {
+    let obj_point = ray.origin + intersection.t * ray.direction;
+    let dist = glm::length2(&(initial_point - obj_point));
+    let cos = glm::dot(&ray.direction, &intersection.n).abs();
 
-//     let mut pdf = obj.pdf(&obj_point) * dist / cos;
-//     if !pdf.is_finite() {
-//         pdf = 0.0;
-//     }
+    let mut pdf = obj.pdf(&obj_point) * dist / cos;
+    if !pdf.is_finite() {
+        pdf = 0.0;
+    }
 
-//     pdf
-// }
+    pdf
+}
 
 pub struct MIS<'a, L> {
     pub to_light: ToLight<'a, L>,
