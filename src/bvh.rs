@@ -176,14 +176,20 @@ impl<G: Geometry> Bvh<G> {
             return intersection;
         };
 
-        let mut left_i = self.nodes[left].aabb.intersect(ray).map(|i| (0, i));
-        let mut right_i = self.nodes[right].aabb.intersect(ray).map(|i| (0, i));
-        if is_closer(&right_i, &left_i) {
+        let mut left_i = self.nodes[left].aabb.intersect(ray);
+        let mut right_i = self.nodes[right].aabb.intersect(ray);
+        if right_i < left_i {
             (left, right) = (right, left);
             (left_i, right_i) = (right_i, left_i);
         }
 
-        if is_closer(&intersection, &left_i) {
+        if left_i.is_infinite()
+            || intersection
+                .as_ref()
+                .map(|(_, i)| i.t)
+                .unwrap_or(f32::INFINITY)
+                < left_i
+        {
             return intersection;
         }
 
@@ -192,7 +198,13 @@ impl<G: Geometry> Bvh<G> {
             intersection = new_intersection;
         }
 
-        if is_closer(&intersection, &right_i) {
+        if right_i.is_infinite()
+            || intersection
+                .as_ref()
+                .map(|(_, i)| i.t)
+                .unwrap_or(f32::INFINITY)
+                < right_i
+        {
             return intersection;
         }
         let new_intersection = self.intersect_node(right, ray, intersection.clone());
@@ -230,11 +242,11 @@ impl<G: Geometry> Bvh<G> {
             return result;
         };
 
-        if self.nodes[left].aabb.intersect(ray).is_some() {
+        if self.nodes[left].aabb.intersect(ray).is_finite() {
             result += self.intersect_all_in_node(left, ray, callback);
         }
 
-        if self.nodes[right].aabb.intersect(ray).is_some() {
+        if self.nodes[right].aabb.intersect(ray).is_finite() {
             result += self.intersect_all_in_node(right, ray, callback);
         }
 

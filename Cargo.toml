@@ -18,4 +18,4 @@ rayon = "1.10.0"
 
 [profile.release]
 opt-level = 1
-debug = 1
+debug = 2

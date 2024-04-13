@@ -21,6 +21,9 @@ pub struct RayIntersection {
 pub struct Aabb {
     pub min: Vec3,
     pub max: Vec3,
+
+    pub sizes: Vec3,
+    pub center: Vec3,
 }
 
 impl Aabb {
@@ -28,6 +31,8 @@ impl Aabb {
         Aabb {
             min: vec3(f32::INFINITY, f32::INFINITY, f32::INFINITY),
             max: vec3(f32::NEG_INFINITY, f32::NEG_INFINITY, f32::NEG_INFINITY),
+            sizes: vec3(f32::NEG_INFINITY, f32::NEG_INFINITY, f32::NEG_INFINITY),
+            center: Vec3::zeros(),
         }
     }
 
@@ -36,6 +41,7 @@ impl Aabb {
             self.min[i] = self.min[i].min(p[i]);
             self.max[i] = self.max[i].max(p[i]);
         }
+        self.update();
     }
 
     pub fn extend(&mut self, other: &Aabb) {
@@ -43,6 +49,7 @@ impl Aabb {
             self.min[i] = self.min[i].min(other.min[i]);
             self.max[i] = self.max[i].max(other.max[i]);
         }
+        self.update();
     }
 
     pub fn area(&self) -> f32 {
@@ -50,15 +57,29 @@ impl Aabb {
         sizes.x * sizes.y + sizes.y * sizes.z + sizes.z * sizes.x
     }
 
-    pub fn intersect(&self, ray: &Ray) -> Option<RayIntersection> {
-        let transformed_ray = Ray {
-            origin: ray.origin - (self.min + self.max) / 2.0,
-            direction: ray.direction,
-        };
-        let parallelipiped = Parallelipiped {
-            sizes: (self.max - self.min) / 2.0,
-        };
-        parallelipiped.intersect_checked(&transformed_ray, false)
+    fn update(&mut self) {
+        self.center = (self.min + self.max) / 2.0;
+        self.sizes = (self.max - self.min) / 2.0;
+    }
+
+    pub fn intersect(&self, ray: &Ray) -> f32 {
+        let o = ray.origin - self.center;
+        let d = ray.direction;
+
+        let mut l = f32::NEG_INFINITY;
+        let mut r = f32::INFINITY;
+        for i in 0..3 {
+            let a = (self.sizes[i] - o[i]) / d[i];
+            let b = -(self.sizes[i] + o[i]) / d[i];
+            l = l.max(a.min(b));
+            r = r.min(a.max(b));
+        }
+
+        if l > r {
+            f32::INFINITY
+        } else {
+            l
+        }
     }
 
     pub fn contains(&self, other: &Aabb) -> bool {
@@ -74,8 +95,8 @@ pub trait Geometry {
 impl Geometry for PositionedFigure {
     fn intersect(&self, ray: &Ray) -> Option<RayIntersection> {
         let transformed_ray = Ray {
-            origin: self.rotation.inverse() * (ray.origin - self.position),
-            direction: self.rotation.inverse() * ray.direction,
+            origin: self.rotation_inv * (ray.origin - self.position),
+            direction: self.rotation_inv * ray.direction,
         };
         let mut intersection = self.figure.intersect(&transformed_ray)?;
 
@@ -137,6 +158,8 @@ impl Geometry for Plane {
         Aabb {
             min: vec3(f32::NEG_INFINITY, f32::NEG_INFINITY, f32::NEG_INFINITY),
             max: vec3(f32::INFINITY, f32::INFINITY, f32::INFINITY),
+            sizes: vec3(f32::INFINITY, f32::INFINITY, f32::INFINITY),
+            center: Vec3::zeros(),
         }
     }
 }

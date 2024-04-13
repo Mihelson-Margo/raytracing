@@ -59,6 +59,7 @@ pub struct PositionedFigure {
     pub figure: Figure,
     pub position: Vec3,
     pub rotation: UnitQuaternion<f32>,
+    pub rotation_inv: UnitQuaternion<f32>,
 }
 
 impl PositionedFigure {
@@ -67,6 +68,7 @@ impl PositionedFigure {
             figure,
             position: Vec3::zeros(),
             rotation: UnitQuaternion::identity(),
+            rotation_inv: UnitQuaternion::identity(),
         }
     }
 }

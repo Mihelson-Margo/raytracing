@@ -166,8 +166,10 @@ pub fn parse_scene(path: &str) -> (Scene, Image) {
             }
             "ROTATION" => {
                 let rotation = parse_quaternion(&tokens[1..]);
+                let rotation_inv = rotation.inverse();
                 let idx = parser.objects.len() - 1;
                 parser.objects[idx].geometry.rotation = rotation;
+                parser.objects[idx].geometry.rotation_inv = rotation_inv;
             }
             "COLOR" => {
                 let color = parse_vec3(&tokens[1..]);

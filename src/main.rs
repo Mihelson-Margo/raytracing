@@ -116,9 +116,7 @@ fn render(scene: Arc<Scene>, image: &mut Image) {
 }
 
 fn main() {
-    let input = std::env::args()
-        .nth(1)
-        .unwrap_or("assets/scene-worst.txt".into());
+    let input = std::env::args().nth(1).unwrap_or("assets/scene.txt".into());
     let output = std::env::args().nth(2).unwrap_or("/tmp/out.ppm".into());
 
     let (scene, mut image) = parse_scene(&input);
