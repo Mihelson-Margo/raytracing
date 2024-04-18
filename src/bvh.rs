@@ -1,8 +1,8 @@
-use itertools::{izip, partition};
+use itertools::partition;
 use noisy_float::types::R32;
 
 use crate::{
-    objects::{Aabb, Geometry, Object, RayIntersection},
+    objects::{Aabb, Geometry, RayIntersection},
     ray::Ray,
 };
 

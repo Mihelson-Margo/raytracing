@@ -4,30 +4,38 @@ use glm::Vec3;
 use rand::rngs::ThreadRng;
 use rand::Rng;
 
-use crate::objects::{Geometry, Material, Object, RayIntersection};
+use crate::objects::{Geometry, MaterialType, Primitive, RayIntersection};
 use crate::random::{ToLight, MIS};
 use crate::ray::Ray;
-use crate::Scene;
+use crate::{Parameters, Scene};
 
-pub fn trace_ray(scene: &Scene, ray: &Ray, depth: usize, rng: &mut ThreadRng) -> Vec3 {
-    if depth >= scene.ray_depth {
+pub fn trace_ray(
+    scene: &Scene,
+    parameters: &Parameters,
+    ray: &Ray,
+    depth: usize,
+    rng: &mut ThreadRng,
+) -> Vec3 {
+    if depth >= parameters.ray_depth {
         return Vec3::zeros();
     }
 
     let Some((idx, intersection)) = scene.bvh.intersect(ray)
     //intersect_with_objects(&scene.bvh.objects, ray, f32::INFINITY)
     else {
-        return scene.background_color;
+        return parameters.background_color;
     };
 
-    let object = scene.bvh.get_object(idx);
+    let primitive = scene.bvh.get_object(idx);
+    let material = &scene.materials[primitive.material_idx];
+    let emitted = material.emission;
+
     let point = ray.origin + intersection.t * ray.direction;
     let normal = intersection.n;
-    let emitted = object.emission;
 
-    let color = match object.material {
-        Material::Diffuse => {
-            let color_obj = object.color / PI;
+    let color = match material.material_type {
+        MaterialType::Diffuse => {
+            let color_obj = material.color / PI;
 
             let distribution = MIS {
                 to_light: ToLight {
@@ -46,19 +54,22 @@ pub fn trace_ray(scene: &Scene, ray: &Ray, depth: usize, rng: &mut ThreadRng) ->
                     let new_ray = Ray::new_shifted(point, new_dir);
                     let cos = glm::dot(&normal, &new_ray.direction);
 
-                    let color_in = trace_ray(scene, &new_ray, depth + 1, rng);
+                    let color_in = trace_ray(scene, parameters, &new_ray, depth + 1, rng);
 
                     color_in.component_mul(&color_obj) * cos / pdf
                 }
             }
         }
-        Material::Metallic => {
+        MaterialType::Metallic => {
             let reflected_ray = get_reflected_ray(&ray.direction, &point, &normal);
-            let color = trace_ray(scene, &reflected_ray, depth + 1, rng);
-            color.component_mul(&scene.bvh.get_object(idx).color)
+            let color = trace_ray(scene, parameters, &reflected_ray, depth + 1, rng);
+            let primitive = scene.bvh.get_object(idx);
+            let material = &scene.materials[primitive.material_idx];
+            color.component_mul(&material.color)
         }
-        Material::Dielectric { ior } => calc_dielectric_color(
+        MaterialType::Dielectric { ior } => calc_dielectric_color(
             scene,
+            parameters,
             rng,
             ray,
             &point,
@@ -75,6 +86,7 @@ pub fn trace_ray(scene: &Scene, ray: &Ray, depth: usize, rng: &mut ThreadRng) ->
 
 fn calc_dielectric_color(
     scene: &Scene,
+    parameters: &Parameters,
     rng: &mut ThreadRng,
     ray: &Ray,
     point: &Vec3,
@@ -93,18 +105,20 @@ fn calc_dielectric_color(
 
     if maybe_refracetd_ray.is_some() && (rng.gen::<f32>() < 1.0 - coeff) {
         let refracted_ray = maybe_refracetd_ray.unwrap();
-        let mut color = trace_ray(scene, &refracted_ray, depth + 1, rng);
+        let mut color = trace_ray(scene, parameters, &refracted_ray, depth + 1, rng);
         if !is_inside {
-            color.component_mul_assign(&scene.bvh.get_object(object_idx).color);
+            let primitive = scene.bvh.get_object(object_idx);
+            let material = &scene.materials[primitive.material_idx];
+            color.component_mul_assign(&material.color);
         }
         color
     } else {
-        trace_ray(scene, &reflected_ray, depth + 1, rng)
+        trace_ray(scene, parameters, &reflected_ray, depth + 1, rng)
     }
 }
 
 fn intersect_with_objects(
-    objects: &[Object],
+    objects: &[Primitive],
     ray: &Ray,
     max_dist: f32,
 ) -> Option<(usize, RayIntersection)> {
@@ -113,7 +127,7 @@ fn intersect_with_objects(
     objects
         .iter()
         .enumerate()
-        .filter_map(|(i, object)| object.geometry.intersect(ray).map(|res| (i, res)))
+        .filter_map(|(i, object)| object.triangle.intersect(ray).map(|res| (i, res)))
         .filter_map(|(i, res)| {
             if res.t * ray_length < max_dist {
                 Some((i, res))

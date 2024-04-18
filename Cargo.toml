@@ -15,6 +15,7 @@ simple_parallel = "0.2"
 num_cpus = "1.0"
 threadpool = "1.8.1"
 rayon = "1.10.0"
+serde_json = {version="1.0.99"}
 
 [profile.release]
 opt-level = 1

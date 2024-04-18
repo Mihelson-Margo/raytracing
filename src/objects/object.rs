@@ -1,38 +1,30 @@
 use glm::Vec3;
 
-use super::{Aabb, Figure, Geometry, PositionedFigure, RayIntersection};
+use super::{Aabb, Geometry, RayIntersection, Triangle};
 
-pub enum Material {
+pub enum MaterialType {
     Diffuse,
     Metallic,
     Dielectric { ior: f32 },
 }
 
-pub struct Object {
-    pub geometry: PositionedFigure,
-
+pub struct Material {
     pub color: Vec3,
     pub emission: Vec3,
-    pub material: Material,
+    pub material_type: MaterialType,
 }
 
-impl Object {
-    pub fn new(geometry: Figure) -> Self {
-        Self {
-            geometry: PositionedFigure::new(geometry),
-            color: Vec3::zeros(),
-            emission: Vec3::zeros(),
-            material: Material::Diffuse,
-        }
-    }
+pub struct Primitive {
+    pub triangle: Triangle,
+    pub material_idx: usize,
 }
 
-impl Geometry for Object {
+impl Geometry for Primitive {
     fn intersect(&self, ray: &crate::ray::Ray) -> Option<RayIntersection> {
-        self.geometry.intersect(ray)
+        self.triangle.intersect(ray)
     }
 
     fn calc_aabb(&self) -> Aabb {
-        self.geometry.calc_aabb()
+        self.triangle.calc_aabb()
     }
 }
