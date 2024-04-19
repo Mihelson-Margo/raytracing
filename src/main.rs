@@ -62,9 +62,9 @@ fn main() {
     let input = std::env::args()
         .nth(1)
         .unwrap_or("assets/practice6_1.gltf".into());
-    let width = parse_arg_usize(2, 800);
+    let width = parse_arg_usize(2, 500);
     let height = parse_arg_usize(3, 500);
-    let samples = parse_arg_usize(4, 128);
+    let samples = parse_arg_usize(4, 16);
     let output = std::env::args().nth(5).unwrap_or("/tmp/out.ppm".into());
 
     let scene = parse_scene(&input, width, height);
@@ -75,7 +75,7 @@ fn main() {
         n_samples: samples,
         image_width: width,
         image_height: height,
-        background_color: Vec3::zeros(),
+        background_color: Vec3::zeros(), // + vec3(0.03, 0.03, 0.03),
     };
 
     let mut image = render(scene, &parameters);

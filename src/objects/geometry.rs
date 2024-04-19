@@ -273,14 +273,19 @@ impl Geometry for Triangle {
         let v = res.y;
         let t = res.z;
 
-        let is_inside = glm::dot(&self.normal, &ray.origin) < 0.0;
+        let is_inside = glm::dot(&self.normal, &ray.direction) >= 0.0;
+        let n = if !is_inside {
+            self.normal
+        } else {
+            -self.normal
+        };
 
         if t < 0.0 || u < 0.0 || v < 0.0 || u + v > 1.0 {
             None
         } else {
             Some(RayIntersection {
                 t,
-                n: self.normal,
+                n,
                 is_inside,
             })
         }

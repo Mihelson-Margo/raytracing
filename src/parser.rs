@@ -1,5 +1,5 @@
 use glm::{length2, vec3, Vec3};
-use na::{Matrix3, Matrix3x4, Matrix4, Unit, UnitQuaternion};
+use na::{Matrix3, Matrix3x1, Matrix3x4, Matrix4, Unit, UnitQuaternion};
 use rand::rngs::ThreadRng;
 use serde_json;
 use std::fs::File;
@@ -139,12 +139,12 @@ fn parse_nodes<'a>(scene_builder: &mut SceneBuilder, scene_data: &SceneJsonData<
 
 fn dfs<'a>(
     node_idx: usize,
-    transformation: &Matrix4<f32>,
+    parent_transformation: &Matrix4<f32>,
     scene_builder: &mut SceneBuilder,
     scene_data: &SceneJsonData<'a>,
 ) {
     let node = &scene_data.nodes[node_idx];
-    let transformation = parse_transformation(node) * transformation;
+    let transformation = parse_transformation(node) * parent_transformation;
 
     if let Some(camera_idx) = parse_opt_usize(node, "camera") {
         println!("Camera {} found!", camera_idx);
@@ -385,12 +385,12 @@ fn parse_transformation(node: &serde_json::Value) -> Matrix4<f32> {
 
     let mut transformation = Matrix4::<f32>::identity();
 
-    if !node["scale"].is_null() {
-        let scale = parse_vec(&node["scale"], 3);
-        for i in 0..3 {
-            transformation[(i, i)] *= scale[i];
-        }
-    }
+    let mut mat3 = if !node["scale"].is_null() {
+        let scale_vec = parse_vec(&node["scale"], 3);
+        Matrix3::from_diagonal(&Matrix3x1::from_vec(scale_vec))
+    } else {
+        Matrix3::identity()
+    };
 
     if !node["translation"].is_null() {
         let translation = parse_vec(&node["translation"], 3);
@@ -403,10 +403,12 @@ fn parse_transformation(node: &serde_json::Value) -> Matrix4<f32> {
         let r = parse_vec(&node["rotation"], 4);
         let q = na::Quaternion::<f32>::new(r[3], r[0], r[1], r[2]);
         let rotation = UnitQuaternion::from_quaternion(q).to_rotation_matrix();
-        for i in 0..3 {
-            for j in 0..3 {
-                transformation[(i, j)] = rotation[(i, j)] * transformation[(j, j)];
-            }
+        mat3 = rotation * mat3;
+    }
+
+    for i in 0..3 {
+        for j in 0..3 {
+            transformation[(i, j)] = mat3[(i, j)];
         }
     }
 
